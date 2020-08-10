@@ -7,4 +7,4 @@ Material used during this project:
 - Update with further open-source material!
 
 ## Basic examples
-- OpenAI gym
+- OpenAI gym [here](OpenAI_gym)
