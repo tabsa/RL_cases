@@ -4,7 +4,7 @@ Examples and cases that I solved when exploring Reinforcement Learning (RL) to e
 ##  Background
 Material used during this project:
 - Slides and videos from David Silver course on RL, available [here](https://www.davidsilver.uk/teaching/);
-- Articles and GitHub repo on RL for Financial trading, available [here](https://www.mlq.ai/deep-reinforcement-learning-for-trading/)
+- Articles and GitHub repo on RL for Financial trading, available [here](https://www.mlq.ai/deep-reinforcement-learning-for-trading/);
 - Update with further open-source material!
 
 ## Basic examples
