@@ -25,13 +25,13 @@ def rule_policy(env, time):
     action = 0
     if time <= 20:
         action = 0 # Go left
-    elif t > 20:
+    elif time > 20:
         action = 1 # Go right
     return action
 # Alternative-based policy
 def alternative_policy(env, time):
     action = 0 # Go left
-    if t%2 == 1: # If the timestep is odd number
+    if time%2 == 1: # If the timestep is odd number
         action = 1 # Go right
     return action
 
