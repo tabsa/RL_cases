@@ -9,6 +9,7 @@ Material used during this project:
 
 ## Basic examples
 - OpenAI gym [here](OpenAI_gym)
+- RL for Financial trading [here](Financial_trading)
 
 ## References
 To see next time:
