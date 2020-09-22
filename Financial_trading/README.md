@@ -12,9 +12,7 @@ pip install tensorflor
 pip install keras
 ```
 Important modules:
-´´´
-from collections import deque
-´´´
+- From *Collections* module use *deque*, basic info [here](https://www.geeksforgeeks.org/deque-in-python/)
 
 ## Basic examples
 - Ongoing!
