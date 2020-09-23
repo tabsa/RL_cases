@@ -1,3 +1,11 @@
+## Deep Q-learning for Stock trading problem
+# Description missing (see Carpole_example - objective, state, action, env definition)
+#
+# The Q-function (state, action) is represented by the Q-table with rows as states and columns as actions.
+# We can then represent the sequence of states+action (t, t+1, t+2,...,t+n) with reward function and transition probability P[s(t) --> s(t+1)].
+# Since we have a POMDP (Partially Observable Markov Decision Process), the Q-table is approximated with learning process (called Q-learning).
+# We use Deep Neural Network (NN) to implement the Q-learning, basically the NN learns the reward function.
+# This way, Q-table is updated when the NN is learning the Q-function over the episodes in our RL framework.
 
 # Import packages
 # Typical pkg
@@ -8,9 +16,9 @@ from collections import deque # Double queue that works similar as list, and wit
 
 # ML framework - Keras API (neural networks)
 from tensorflow import keras
-from keras.models import Sequential
+from keras.models import Sequential # NN model architecture. Sequential defines a Multi-layer sequence connecting Input with Output. Most common architecture used
 from keras.models import load_model
-from keras.layers import Dense
+from keras.layers import Dense # Defines the type of connection in a layer (input_neuron <-> output_neuron). It is a regular connection out = acti(wei * in + bias), and most commonly used layer.
 from keras.optimizers import Adam
 
 # Create class trader agent
@@ -29,12 +37,13 @@ class trader_agent:
         self.epsilon_decay = 0.995
         self.model = load_model("models/" + model_name) if is_eval else self._model()
 
-    def _model(self): # NN model for the Q-learning
-        model = Sequential()
-        model.add(Dense(units=64, input_dim=self.state_size, activation="relu")) # 1st-layer (input layer, n-days of the state)
-        model.add(Dense(units=32, activation="relu"))
-        model.add(Dense(units=8, activation="relu"))
-        model.add(Dense(self.action_size, activation="linear")) # end-layer (output layer, n-actions in this example is 3)
+    def _model(self): # Build the NN model for the Q-learning -- Sequential Multi-layer NN architecture
+        model = Sequential() # Multi-layer with 4 layers connected one-by-one
+        # 1st-layer (input = n-days of the state; output = 64 elements). Dictates the weight shape to connect input <-> output
+        model.add(Dense(units=64, input_dim=self.state_size, activation="relu")) # units - no of output elements, input_dim - no of input el, activation - Function (RelU most common one)
+        model.add(Dense(units=32, activation="relu")) # 2nd-layer with input = 64 neurons <-> output = 32 neurons. REMEMBER: 64 el is because output of 1st layer is 64 (units=64). Weights.shape(32, 64)
+        model.add(Dense(units=8, activation="relu")) # 3rd-layer with input = 32 <-> output = 8. Weights.shape(8, 32)
+        model.add(Dense(self.action_size, activation="linear")) # end-layer with input = 8 <-> output = 3 (action - Buy, Sell, Hold). Weights.shape(3, 8)
         model.compile(loss="mse", optimizer=Adam(lr=0.001))
 
         return model
