@@ -14,5 +14,9 @@ pip install keras
 Important modules:
 - From *Collections* module use *deque*, basic info [here](https://www.geeksforgeeks.org/deque-in-python/)
 
+Extra info of modules:
+- Basic info about the Sequential.model in  ```keras```, available here [here](https://machinelearningmastery.com/keras-functional-api-deep-learning/)
+- Example of NN.layer in ```keras```, available here [here](https://www.tutorialspoint.com/keras/keras_dense_layer.htm#:~:text=Advertisements,input%20and%20return%20the%20output.)
+
 ## Basic examples
 - Ongoing!
