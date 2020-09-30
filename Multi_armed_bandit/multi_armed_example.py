@@ -16,18 +16,18 @@ class MAD_env:
         else:
             self.var_revenue = var_revenue  # Assign the array of revenues per variant_n
         self.no_trials = no_trials  # 'Time-step' in the RL framework, duration of each episode [1,...,no_trials]
-        self.total_reward = 0  # Initialize the reward function per time t
+        self.env_simulation = 0  # Flag indicating the simulation is completed
         self.action_size = len(variants)  # Size of the action space - no of variants n
         self.env_size = (self.action_size, self.no_trials)
 
     def run(self, agent):  # Run the MAD_environment
         # Run the simulation, environment response, to the agent action per time_t [1,...,no_trials]
-        for t in range(self.no_trials):  # Per time_t
+        for t in range(self.no_trials):  # per time_t
             # Agent makes action in time_t - action_t
             action_t = agent.action()  # Calls action function of agent_class
             # Environment responds in time_t - state_t, reward_t
-            reward_t = np.random.binomial(1, p=self.var_revenue[
-                action_t])  # Reward is a binomial (0,1) distribution, probability is defined by the expected revenue per var_n (each var_n has a exp_rev that represents the prob of success)
+            reward_t = np.random.binomial(1, p=self.var_revenue[action_t])  # Reward is a binomial (0,1) distribution, (cont.)...
+            # probability is defined by the expected revenue per var_n (each var_n has a exp_rev that represents the prob of success)
             # Represents the success of a slot machine 0-losing and 1-winning
 
             # Agent receives state_t and reward_t
@@ -35,18 +35,19 @@ class MAD_env:
             # Agent updates the strategy to time_t+1
             agent.update()  # Calls function that updates agent info for next time_t+1
             # Stores reward over time_t. We can get the total reward for the simulation.
-            self.total_reward += reward_t  # This way, we place the class MAD_env to be used inside a 'Training strategy' of RL_agent with for-loop i per no_epi: Agent_class(i), MAD_env(i)
+            agent.total_reward += reward_t  # This way, we place the class MAD_env to be used inside a 'Training strategy' of RL_agent with for-loop i per no_epi: Agent_class(i), MAD_env(i)
 
         agent.collect_data()  # Function that stores the info, associated to agent_class
         # Return of this function
-        return self.total_reward
+        self.env_simulation = 1
+        return self.env_simulation
 
 
 # Build the agent
 class Agent():
     def __init__(self, env, policy_opt, no_sample=None, time_learning=None, e_greedy=0.05):
         # Parameters - Agent info
-        self.policy_opt = policy_opt # String with the policy
+        self.policy_opt = policy_opt  # String with the policy strategy
         self.no_sample = no_sample  # Number of samples for the simulation
         self.time_learning = time_learning  # Number of time_t for learning, e.g. 1000 time_steps (trials) given for learning
         self.e_greedy = e_greedy  # Probability for exploring (epsilon_greedy)
@@ -76,7 +77,7 @@ class Agent():
         self.data = None  # DataFrame storing the final info of each episode simulation
 
     def collect_data(self):  # Function to manipulate data into DataFrames
-        self.data = pd.DataFrame(dict(ad=self.action_t, reward=self.reward_t, regret=self.regret_t))
+        self.data = pd.DataFrame(dict(action=self.action_t, reward=self.reward_t, regret=self.regret_t))
 
     def action(self):  # Function to make the action of the agent over time_t
         if self.policy_opt == 'Random_policy':
@@ -84,19 +85,26 @@ class Agent():
             self.action_choice = self.rand_policy()
         elif self.policy_opt == 'e-greedy_policy':
             # Algorithm with e-greedy approach
-            self.action_choice = self.rand_policy()
+            self.action_choice = self.eGreedy_policy()
+        elif self.policy_opt == 'Thompson_Sampler_policy':
+            # Algorithm with Thompson Sampler approach
+            self.action_choice = self.tpSampler_policy()
         # Return the result
         return self.action_choice
 
     def update(self): # Function to update the arrays over time_t and var_n
         # Update the Cumulative probability for the var_n. It is updated everytime var_n is selected by action_t
         self.a[self.action_choice] += self.reward
-        self.b[self.action_choice] += 1
-        self.var_theta = self.a / self.b # Update the Prob of all variants_n (slot machines) of the action space [1,...,self.env.action_size]
+        # self.b counts the no of times var_n was selected for self.policy_opt --> 'Random' and 'e-Greedy'
+        # When self.policy_opt --> 'Thompson-Sampler', self.b increments 1 when var_n has reward = 0 (we miss). This way the cumulative_reward (self.a) is spreaded on the Beta Bernoulli distribution
+        # It is like the ratio of self.a/self.b drops everytime we miss revenue with var_n (machine). Increase the change of another var_n being selected later on
+        self.b[self.action_choice] += 1 - self.reward if self.policy_opt == 'Thompson_Sampler_policy' else 1
+        # Update the Prob of all variants_n (slot machines) of the action space [1,...,self.env.action_size]
+        self.var_theta = self.a / self.b
 
         # Calculate for time_t the Cumulative probability of regret (opportunity cost)
         if self.policy_opt == 'Random_policy':
-            # As random policy, the opportunity cost (theta) depends on the cumulative prob each var_n gets over time
+            # As random policy, the opportunity cost (theta) per time_t -- is the difference of the Max-Cum-Prob and Cum-Prob of var_n gets over time
             self.theta_regret_t[self.id_t] = np.max(self.var_theta) - self.var_theta[self.action_choice]
         elif self.policy_opt == 'e-greedy_policy':
             # As e-greedy, the opportunity cost (theta) depends on NOT exploiting others 'non-seen' (less prob) var_n then var_n[self.action_choice]
@@ -123,10 +131,37 @@ class Agent():
         # Return the result of the function
         return aux
 
+    def tpSampler_policy(self):
+        # Thompson Sampler policy
+        # Sampling a probability based on distribution (We assumed Beta Bernoulli) based on cumulative reward (self.a) and no. selected-times (self.b) per var_n
+        # The distribution captures the uncertainty that is changing over time_t
+        # Rule of thumb - largest mean and smallest std.dev results in greater prob of being selected...
+        # ...var_n with low revenue is expected a wider distribution with small mean and large std.dev resulting in high uncertainty for future action choice
+        self.var_theta = np.random.beta(self.a, self.b)
+        # Select the var_n (machine) with highest expected revenue (based on cumulative probability over time_t)
+        return self.env.variants[np.argmax(self.var_theta)]
+
 ## Main script
-slot_machi = np.arange(10)
+slot_machi = np.arange(10) # Id of the slot machines
 machi_payout = np.array([0.023, 0.03, 0.029, 0.001, 0.05, 0.06, 0.0234, 0.035, 0.01, 0.11])
-env = MAD_env(slot_machi, machi_payout, no_trials=1000)
-agent1 = Agent(env, 'Random_policy', time_learning=100)
-agent2 = Agent(env, 'e-greedy_policy', time_learning=100)
-print(agent1.action())
+env = MAD_env(slot_machi, machi_payout, no_trials=10000)
+agent1 = Agent(env, 'Random_policy')
+agent2 = Agent(env, 'e-greedy_policy', time_learning=1000)
+agent3 = Agent(env, 'Thompson_Sampler_policy')
+
+env.run(agent1)
+print('Random policy')
+print(agent1.data)
+print(f'Total reward: {agent1.total_reward}')
+
+env.run(agent2)
+print('')
+print('e-Greedy policy')
+print(agent2.data)
+print(f'Total reward: {agent2.total_reward}')
+
+env.run(agent3)
+print('')
+print('Thompson-Sampler policy')
+print(agent3.data)
+print(f'Total reward: {agent3.total_reward}')
