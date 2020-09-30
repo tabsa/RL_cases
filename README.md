@@ -5,6 +5,7 @@ Examples and cases that I solved when exploring Reinforcement Learning (RL) to e
 Material used during this project:
 - Slides and videos from David Silver course on RL, available [here](https://www.davidsilver.uk/teaching/);
 - Articles and GitHub repo on RL for Financial trading, available [here](https://www.mlq.ai/deep-reinforcement-learning-for-trading/);
+- Recommended Python libraries for Data Science, available [here](https://medium.com/analytics-vidhya/5-obscure-python-libraries-every-data-scientist-should-know-3651bf5d3be3);
 - Update with further open-source material!
 
 ## Basic examples
@@ -18,4 +19,5 @@ To see next time:
 - Verification of NN [here](https://ieeexplore.ieee.org/document/9141308) and [here](https://www.youtube.com/watch?v=dgoh7PI7dqM)
 - Cart pole with Deep RL [here](https://www.datamachinist.com/reinforcement-learning/part-4-learning-to-use-openai-gym/)
 - Multiarmed bandits example [here](https://towardsdatascience.com/solving-multiarmed-bandits-a-comparison-of-epsilon-greedy-and-thompson-sampling-d97167ca9a50)
+- Actor-Critic method example [here](https://medium.com/free-code-camp/an-intro-to-advantage-actor-critic-methods-lets-play-sonic-the-hedgehog-86d6240171d)
 
