@@ -7,9 +7,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 # Import Class and functions
-from p2p_class_code import * # Class of the P2P market example
+from p2p_class_code import p2p_env, market_agents # Class of the P2P market example
 
 #%% Main script
+no_hours = 100
+no_agents = 10
+time_sample = 5 # 5min
+time_step = int(60/time_sample) # 60min (=hour) --> no. time steps
+no_time = int(no_hours * time_step) # Total no of time steps
+
+# Build the agents in the P2P market
+p2p_agents = market_agents(no_agents, no_time) # Class that defines EVERY with the market agents
+p2p_agents.read_input('market_agents_input.csv')
+
+# Call the p2p_env
+env = p2p_env(p2p_agents, no_time, time_step)
+print('Done')
 # # Input of the Multi-Armed Bandit (MAD) problem
 # slot_machi = np.arange(10) # Id of the slot machines
 # machi_payout = np.array([0.023, 0.03, 0.029, 0.001, 0.05, 0.06, 0.0234, 0.035, 0.01, 0.11])
