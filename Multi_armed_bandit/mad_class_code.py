@@ -119,7 +119,7 @@ class Agent:
         if self.policy_opt == 'Random_policy':
             # As random policy, the opportunity cost (theta) per time_t -- is the difference of the Max-Cum-Prob and Cum-Prob of var_n gets over time
             self.theta_regret_t[self.id_t] = np.max(self.var_theta) - self.var_theta[self.action_choice]
-        elif self.policy_opt == 'e-greedy_policy':
+        elif self.policy_opt == 'e-greedy_policy' or self.policy_opt == 'Thompson_Sampler_policy':
             # As e-greedy, the opportunity cost (theta) depends on NOT exploiting others 'non-seen' (less prob) var_n then var_n[self.action_choice]
             # (1-e-greedy) of time_t the Agent will select the var_n with the highest self.var_theta, the regret comes on NOT exploring other action_options
             self.theta_t[self.id_t] = self.var_theta[self.action_choice]
