@@ -7,36 +7,44 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 # Import Class and functions
-from p2p_class_code import p2p_env, market_agents # Class of the P2P market example
+from p2p_class_code import p2p_env, market_agents, p2p_RL_agent # Class of the P2P market example
+from p2p_as_mad_class import trading_env, trading_agent
 
-#%% Main script
-no_hours = 100
+#%% Script - Using the p2p_as_mad_class
+no_trials = 50
 no_agents = 10
-time_sample = 5 # 5min
-time_step = int(60/time_sample) # 60min (=hour) --> no. time steps
-no_time = int(no_hours * time_step) # Total no of time steps
 
-# Build the agents in the P2P market
-p2p_agents = market_agents(no_agents, no_time) # Class that defines EVERY with the market agents
-p2p_agents.read_input('market_agents_input.csv')
+# Build the p2p market env
+env = trading_env(no_agents, no_trials, 'offers_input.csv')
+# Agent performance
+rd_agent = trading_agent(env, 'Random_policy')
+eg_agent = trading_agent(env, 'e-greedy_policy', time_learning=10, e_greedy=0.25) # Agent using the e-Greedy policy
+# Simulation with rd_agent
+env.run(rd_agent)
+env.run(eg_agent)
 
-# Call the p2p_env
-env = p2p_env(p2p_agents, no_time, time_step)
-print('Done')
-# # Input of the Multi-Armed Bandit (MAD) problem
-# slot_machi = np.arange(10) # Id of the slot machines
-# machi_payout = np.array([0.023, 0.03, 0.029, 0.001, 0.05, 0.06, 0.0234, 0.035, 0.01, 0.11])
-# labels = ["V" + str(i) + (str(p)) for i, p in zip(slot_machi, machi_payout)]
-# assert len(slot_machi) == len(machi_payout), 'Size of Var_n is NOT equal to Revenue_var_n'
+# Plot parameters
+cmap = plt.get_cmap("tab10", 10)
+sns.set_style("whitegrid")
+rd_agent.plot_action_choice(cmap, f'Random policy across {no_trials} steps')
+eg_agent.plot_action_choice(cmap, f'e-Greedy policy across {no_trials} steps')
+
+#%% Script - Using the p2p_class_code
+# no_hours = 100
+# no_agents = 10
+# time_sample = 5 # 5min
+# time_step = int(60/time_sample) # 60min (=hour) --> no. time steps
+# no_time = int(no_hours * time_step) # Total no of time steps
 #
-# # Parameters and Class of the MAD problem
-# n_trials = 10000
-# n_agents = 3
-# env = MAD_env(slot_machi, machi_payout, n_trials) # Env class
+# # Build the agents in the P2P market
+# p2p_agents = market_agents(no_agents, no_time, 'market_agents_input.csv') # Class that defines EVERY with the market agents
 #
-# # Plot parameters
-# cmap = plt.get_cmap("tab10", 10)
-# sns.set_style("whitegrid")
+# # Call the p2p_env
+# env = p2p_env(p2p_agents, no_time, time_step)
+# #rd_agent = p2p_RL_agent(env, 'Random_policy')
+# env.set_simulation()
+
+#%% Input of the Multi-Armed Bandit (MAD) problem
 #
 # # Agent performance
 # rd_agent = Agent(env, 'Random_policy') # Agent using the Random policy

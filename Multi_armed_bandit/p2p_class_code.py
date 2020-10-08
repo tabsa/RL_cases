@@ -5,6 +5,7 @@
 
 #%% Import packages
 import numpy as np
+import numpy.matlib
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
@@ -22,11 +23,14 @@ class p2p_env:
         self.action_size = agents.no_agents  # Size of the action space - no of prosumer j
         self.env_size = (self.action_size, self.no_time)
 
-    def time_series_update(self, RL_agent):
-        ## Run a Monte Carlo sampling
-        return 0
+    def set_simulation(self, RL_agent):
+        self.agents.read_input()
+        target_T = RL_agent.profile_sampling()  # Energy value for each last time-step (target_step), IMPORTANT to match the offers from the env.agents to the target_T
+        self.agents.time_series_update(target_T, self.target_step)
 
     def run(self, RL_agent):  # Run the MAD_environment
+        # Start by setting the simulatio - EXPLAIN BETTER
+        self.set_simulation(RL_agent)
         # Run the simulation, environment response, to the agent action per time_t [1,...,no_trials]
         for t in range(self.no_time):  # per time_t
             # Agent makes action in time_t - action_t
@@ -50,7 +54,8 @@ class p2p_env:
 
 #%% Build Characteristics of the other Prosumers - j index [1,...,no_agents]
 class market_agents:
-    def __init__(self, no_agents, no_time, no_preferences=2): # Define the paramters of this class
+    def __init__(self, no_agents, no_time, file, no_preferences=2): # Define the paramters of this class
+        self.input_file = file
         self.no_agents = no_agents # No of agents
         self.agents_id = np.arange(no_agents) # Array with agents_j id [0,...,no_agents-1]
         self.no_preferences = no_preferences # No. of pref - Default is 2 (Distance, CO2)
@@ -61,13 +66,31 @@ class market_agents:
         self.sigma = np.zeros((self.no_agents, no_time)) # Sigma distribution of accepted offer pair (i,j) - Dictates if Energy^t_{i,j} is accepted or not
         self.sigma_ref = np.zeros(self.no_agents) # Reference for the sigma, from agent j perspective, each agent j expects to accept offers with sigma_ref[j] probability
 
-    def read_input(self, file): # Read file
+    def read_input(self): # Read file
         ## Read the csv-file with all input information
-        input_data = pd.read_csv(file)
+        input_data = pd.read_csv(self.input_file)
         # Convert the DataFrame into arrays
         self.price_bounds = input_data[['max_price', 'min_price']].values
         self.sigma_ref = input_data['sigma'].values
         self.preference = input_data[['distance','co2']].values  # Convert pd.frame into
+
+    def time_series_update(self, target, rep_step): # Function to generate/collect the time-series of each agent_j
+        ## Run a Monte Carlo sampling - FUTURE it can be something else - Read input file, other type of sampling
+        # Energy offering sampling - Depends on the target (energy from RL_agent)
+        tg_size = len(target) # Indicates the size of the array, tg_size = no_time/rep_step
+        ag_target = np.random.uniform(low=target, high=1.5*target, size=tg_size)
+        target_repmat = np.matlib.repmat(ag_target, 1, rep_step).reshape(1, tg_size*rep_step, order='F')
+        # Rep_mat replicates the target for each time_t of that target, e.g. target_[0] will be for target_rp[step0, step1,...stepTarget]
+        # Example we have time=5min and rep_step=12, so the target[0] will be equal for 12*time
+        # Random sample distribution per agent_j for each time_t
+        ener_rnd_sample = np.random.sample(size=(self.no_agents, tg_size*rep_step))
+        ener_rnd_sample = ener_rnd_sample/sum(ener_rnd_sample) # Get the ratio to distribute as Pro-rata
+        self.energy = ener_rnd_sample*target_repmat
+        # Price offering sampling
+        for j in range(self.no_agents): # For-loop per agent_j
+            j_mean = self.price_bounds[j,0] # Mean price per agent j
+            j_std = self.price_bounds[j, 1] # Std dev price per agent j
+            self.price[j,:] = np.random.normal(loc=j_mean, scale=j_std, size=self.price.shape[1])
 
 #%% Build the RL_agent and represented prosumer_i
 class p2p_RL_agent: # Class of RL_agent to represent the prosumer i
@@ -109,6 +132,11 @@ class p2p_RL_agent: # Class of RL_agent to represent the prosumer i
     def collect_data(self):  # Function to manipulate data into DataFrames
         self.data = pd.DataFrame(dict(action=self.action_t, reward=self.reward_t, regret=self.regret_t))
 
+    def profile_sampling(self): # Function to generate/collect the energy profile of prosumer_i
+        ## Run a Uniform sampling
+        self.energy_target = np.random.uniform(low=self.energy_target_bounds[0], high=self.energy_target_bounds[1],
+                                               size=len(self.energy_target))
+        return self.energy_target
     # def plot_action_choice(self, plt_colmap, title):
     #     plt.figure(figsize=(10,7))
     #     trials = np.arange(0, self.no_trials)
