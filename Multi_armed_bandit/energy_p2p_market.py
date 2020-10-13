@@ -11,23 +11,52 @@ from p2p_class_code import p2p_env, market_agents, p2p_RL_agent # Class of the P
 from p2p_as_mad_class import trading_env, trading_agent
 
 #%% Script - Using the p2p_as_mad_class
-no_trials = 50
-no_agents = 10
+# no_trials = 40
+# no_agents = 15
+#
+# # Build the p2p market env
+# env = trading_env(no_agents, no_trials, 'offers_input.csv')
+# # Agent performance
+# rd_agent = trading_agent(env, 'Random_policy')
+# eg_agent = trading_agent(env, 'e-greedy_policy', time_learning=10, e_greedy=0.25) # Agent using the e-Greedy policy
+# # Simulation with rd_agent
+# env.run(rd_agent)
+# env.run(eg_agent)
+#
+# # Plot parameters
+# cmap = plt.get_cmap("tab10", 15)
+# sns.set_style("whitegrid")
+# rd_agent.plot_action_choice(cmap, f'Random policy across {no_trials} trials')
+# eg_agent.plot_action_choice(cmap, f'e-Greedy policy across {no_trials} trials')
 
-# Build the p2p market env
-env = trading_env(no_agents, no_trials, 'offers_input.csv')
-# Agent performance
-rd_agent = trading_agent(env, 'Random_policy')
-eg_agent = trading_agent(env, 'e-greedy_policy', time_learning=10, e_greedy=0.25) # Agent using the e-Greedy policy
-# Simulation with rd_agent
-env.run(rd_agent)
-env.run(eg_agent)
-
+#%% Informs simulation
+no_trials = 40
+no_agents = 15
+no_episodes = 10
+target_sample = np.zeros(no_episodes)
+target_bounds = np.array([3, 15])
 # Plot parameters
-cmap = plt.get_cmap("tab10", 10)
+cmap = plt.get_cmap("tab10", 15)
 sns.set_style("whitegrid")
-rd_agent.plot_action_choice(cmap, f'Random policy across {no_trials} steps')
-eg_agent.plot_action_choice(cmap, f'e-Greedy policy across {no_trials} steps')
+
+# For-loop per simulation
+for e in range(no_episodes):
+    target_sample[e] = np.random.uniform(low=target_bounds[0], high=target_bounds[1])
+    env = trading_env(no_agents, no_trials, 'offers_input.csv', 'External_sample', target_sample[e])
+    # Episode print
+    print(f'Episode {e} - Energy target {target_sample[e]}')
+    # Simulate the Random-policy
+    rd_agent = trading_agent(env, 'Random_policy')
+    env.run(rd_agent)
+    rd_agent.plot_action_choice(cmap, f'Random policy across {no_trials} trials of episode {e}')
+    # Simulate the eGreedy-policy
+    eg_agent = trading_agent(env, 'e-greedy_policy', time_learning=10, e_greedy=0.25)  # Agent using the e-Greedy policy
+    env.run(eg_agent)
+    eg_agent.plot_action_choice(cmap, f'e-Greedy policy across {no_trials} trials of episode {e}')
+    # Simulate the Thompson-Sampler-policy
+    ts_agent = trading_agent(env, 'Thompson_Sampler_policy')
+    env.run(ts_agent)
+    ts_agent.plot_action_choice(cmap, f'Thompson-Sampler policy across {no_trials} steps of episode {e}')
 
 #%% Script - Using the p2p_class_code
 # no_hours = 100
