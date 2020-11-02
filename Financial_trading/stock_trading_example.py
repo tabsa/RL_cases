@@ -31,10 +31,10 @@ class trader_agent:
         self.model_name = model_name
         self.is_eval = is_eval
         # Parameters of the Q-learning
-        self.gamma = 0.95
+        self.gamma = 0.95 # Q-learning rate, rate of learning the Q-table
         self.epsilon = 1.0
-        self.epsilon_min = 0.01
-        self.epsilon_decay = 0.995
+        self.epsilon_min = 0.01 # min exploration prob (epsilon)
+        self.epsilon_decay = 0.995 # Decay of exploration probability (epsilon)
         self.model = load_model("models/" + model_name) if is_eval else self._model()
 
     def _model(self): # Build the NN model for the Q-learning -- Sequential Multi-layer NN architecture
@@ -49,9 +49,10 @@ class trader_agent:
         return model
 
     def act(self, state): # Select the next action t+1
+        # Exploration phase - is_eval = True and rand <= epsilon (learning probability)
         if not self.is_eval and np.random.rand() <= self.epsilon:
-            return rnd.randrange(self.action_size)
-
+            return rnd.randrange(self.action_size) # Takes random action to fill the Q-table
+        # Exploitation phase - uses NN to predict the next action_t+1 based on the state_t
         options = self.model.predict(state) # NN to predict the action t+1
         return np.argmax(options[0]) # Returns the index of the max value of option.array
 
