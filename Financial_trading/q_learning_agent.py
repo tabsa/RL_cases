@@ -56,7 +56,8 @@ class trader_agent:
         options = self.model.predict(state) # NN to predict the action t+1
         return np.argmax(options[0]) # Returns the index of the max value of option.array
 
-    def expReplay(self, batch_size):
+    def expReplay(self, batch_size): # Training of the NN over time t
+        # Per time t we update the NN (weights and bias) so that we can have a better Q-function guess
         mini_batch = []
         l = len(self.memory)
         for i in range(l - batch_size + 1, l):
