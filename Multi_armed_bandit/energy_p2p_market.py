@@ -28,18 +28,18 @@ for e in range(no_episodes):
     env = trading_env(no_agents, no_trials, 'offers_input.csv', 'External_sample', target_sample[e])
     # Episode print
     print(f'Episode {e} - Energy target {target_sample[e]}')
-    # Simulate the Random-policy
-    rd_agent = trading_agent(env, 'Random_policy')
-    env.run(rd_agent)
-    rd_score[0, e] = rd_agent.total_reward
-    plt_title[0] = f'Random policy across {no_trials} trials of episode {e}'
-    plot_action_choice(rd_agent, ax_label, plt_title)
-    # Simulate the eGreedy-policy
-    eg_agent = trading_agent(env, 'e-greedy_policy', time_learning=10, e_greedy=0.25)  # Agent using the e-Greedy policy
-    env.run(eg_agent)
-    rd_score[1, e] = eg_agent.total_reward
-    plt_title[0] = f'e-Greedy policy across {no_trials} trials of episode {e}'
-    plot_action_choice(eg_agent, ax_label, plt_title)
+    # # Simulate the Random-policy
+    # rd_agent = trading_agent(env, 'Random_policy')
+    # env.run(rd_agent)
+    # rd_score[0, e] = rd_agent.total_reward
+    # plt_title[0] = f'Random policy across {no_trials} trials of episode {e}'
+    # plot_action_choice(rd_agent, ax_label, plt_title)
+    # # Simulate the eGreedy-policy
+    # eg_agent = trading_agent(env, 'e-greedy_policy', time_learning=10, e_greedy=0.25)  # Agent using the e-Greedy policy
+    # env.run(eg_agent)
+    # rd_score[1, e] = eg_agent.total_reward
+    # plt_title[0] = f'e-Greedy policy across {no_trials} trials of episode {e}'
+    # plot_action_choice(eg_agent, ax_label, plt_title)
     # Simulate the Thompson-Sampler-policy
     ts_agent = trading_agent(env, 'Thompson_Sampler_policy')
     env.run(ts_agent)
