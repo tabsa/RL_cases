@@ -51,3 +51,25 @@ def plot_action_choice(agent, axis_label, plt_title):
     plt.ylabel(axis_label[2], fontsize=16)
     #plt.legend()
     plt.show()
+
+def plot_regret_prob(regret_prob, epi_id, plt_label, axis_label, plt_title):
+    # Plot regret over trial (opportunity cost of selecting a better action)
+    agents = regret_prob.shape[0] # no RL agents
+    plt.figure(figsize=(10, 7))
+    # Subplot 1
+    plt.subplot(211)  # 2 rows and 1 column
+    for a in range(agents):
+        plt.plot(np.cumsum(1 - regret_prob[a, epi_id, :]), label=plt_label[a])  # Plot per RL_agent
+    plt.xlabel(axis_label[0], fontsize=16)
+    plt.ylabel(axis_label[1], fontsize=16)
+    plt.title(plt_title[0], fontsize=16)
+    plt.legend()
+    # Subplot 2
+    plt.subplot(212)
+    for a in range(agents):
+        plt.plot(1 - regret_prob[a, epi_id, :], label=plt_label[a])
+    plt.xlabel(axis_label[0], fontsize=16)
+    plt.ylabel(axis_label[1], fontsize=16)
+    plt.title(plt_title[1], fontsize=16)
+    plt.legend()
+    plt.show()
