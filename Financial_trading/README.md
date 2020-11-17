@@ -4,6 +4,7 @@ My examples in python to implement a RL agent as market trader for Financial mar
 ##  Supported material
 - Introductory articles on RL for Financial trading, available [here](https://www.mlq.ai/deep-reinforcement-learning-for-trading/)
 - GitHub Repo with Q-learning implementation for the Stock market [here](https://github.com/ucaiado/QLearning_Trading)
+- Article on how to develop a trading bot using Deep learning [here](https://medium.com/analytics-vidhya/using-deep-learning-to-create-a-stock-trading-bot-a96e6351d31c)
 
 ## Packages and Modules
 Preliminary packages:
