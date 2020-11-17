@@ -14,3 +14,4 @@ No need for special ones.
 
 ## Basic examples
 - MAD problem with the generic formulation, please run the [script](multi_armed_example.py). It is an example for RL agent using Random, e-Greedy, Thompson-Sampler policies;
+- P2P market application as MAD problem, please run the [script](energy_p2p_market.py). The project implements RL_agent to determine the best trading partners in P2P market using Random, epsilon-Greedy and Thompson-Sampler policies;
