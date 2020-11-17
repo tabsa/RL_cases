@@ -135,8 +135,7 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         self.reward_n = np.zeros(env.no_trials)
         self.reward_n_bin = np.zeros(env.no_trials) # Reward success of failure {1,0}
         self.theta_n = np.zeros(env.no_trials) # Cumulative probability of success per trial_n
-        self.regret_n = np.zeros(env.no_trials) # Opportunity cost per time_t
-        self.theta_regret_n = np.zeros(env.no_trials) # Probability of the opportunity cost per trial_n
+        self.theta_regret_n = np.zeros(env.no_trials) # Probability of the opportunity cost per trial_n (Or regret probability)
         # Store info over action space [1,...,action_size], REMEMBER action_size is equal to the number of slot_machines
         self.a = np.ones(env.no_offers) # Array with cumulative reward per time_t for each var_n (slot_machine)
         self.b = np.ones(env.no_offers) # Array with the count of times var_n was chosen
@@ -166,7 +165,7 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         if self.policy_opt == 'Random_policy':
             # As random policy, the opportunity cost (theta) per time_t -- is the difference of the Max-Cum-Prob and Cum-Prob of var_n gets over time
             self.theta_regret_n[self.id_n] = np.max(self.var_theta) - self.var_theta[self.action_choice]
-        elif self.policy_opt == 'e-greedy_policy':
+        elif self.policy_opt == 'e-greedy_policy' or self.policy_opt == 'Thompson_Sampler_policy':
             # As e-greedy, the opportunity cost (theta) depends on NOT exploiting others 'non-seen' (less prob) var_n then var_n[self.action_choice]
             # (1-e-greedy) of time_t the Agent will select the var_n with the highest self.var_theta, the regret comes on NOT exploring other action_options
             self.theta_n[self.id_n] = self.var_theta[self.action_choice]
