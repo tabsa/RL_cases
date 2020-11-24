@@ -4,10 +4,8 @@
 
 #%% Import packages
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 # Import Class and functions
-from p2p_class_code import p2p_env, market_agents, p2p_RL_agent # Class of the P2P market example
+#from p2p_class_code import p2p_env, market_agents, p2p_RL_agent # Class of the P2P market example
 from p2p_as_mad_class import trading_env, trading_agent
 from plot_class import plot_action_choice, plot_reward_per_episode, plot_regret_prob
 

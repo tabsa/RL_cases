@@ -73,3 +73,7 @@ def plot_regret_prob(regret_prob, epi_id, plt_label, axis_label, plt_title):
     plt.title(plt_title[1], fontsize=16)
     plt.legend()
     plt.show()
+
+# def plot_exp_regret(target, offer_info, rd_signal):
+#     # Plot the regret probability over step_n
+#
