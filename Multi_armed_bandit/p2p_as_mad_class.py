@@ -54,43 +54,40 @@ class trading_env:
         for n in range(self.no_trials):  # per trial_n
             #### Agent choice in step n ####
             # Agent makes action in trial_n - action_n
-            action_n = trading_agent.action()  # Calls action function of agent_class
-
+            #action_n = trading_agent.action()  # Calls action function of agent_class
+            action_n = 11
             #### Environment update for step n ####
-            # Update of state_n, reward_n
-            # ## Classic MAD reward_n function ~ {0, 1} as Binomial distribution
-            # reward_n = np.random.binomial(1, p=self.offers_info[action_n,2])  # Reward is a binomial (0,1) distribution, (cont.)...
-            # # probability is defined by the expected revenue per var_n (each var_n has a exp_rev that represents the prob of success)
             ## Tweak the reward_n - As a risk function r_n := sigma(action_n) * Energy(action_n)
-            reward_n_signal = np.random.binomial(1, p=self.offers_info[action_n,2])  # Binomial distribution
+            reward_n_signal = np.random.binomial(1, p=self.offers_info[action_n,2])  # Signal <-- Binomial distribution
             state_n_1 = trading_agent.state_n[n - 1] if n > 0 else 0 # state_n-1
-
             # Agent receives state_n and reward_n
-            trading_agent.action_n[:, n], trading_agent.state_n[n], trading_agent.reward_n[n] = \
-                self.update_state_reward(action_n, state_n_1, reward_n_signal, target_T) # Update of st_n and rd_n
+            trading_agent.action_n[:, n], trading_agent.state_n[n] = self.update_state(action_n, state_n_1, reward_n_signal, target_T) # Update of st_n and rd_n
+            trading_agent.reward_n[n] = self.reward_fun(trading_agent.action_n[:,n], reward_n_signal)
             trading_agent.reward_n_signal[n] = reward_n_signal
             trading_agent.total_reward += trading_agent.reward_n[n] # Total reward over n steps
             trading_agent.update_regret_prob()  # Update of regret probability
-
+            # Termination condition
             if target_T == trading_agent.state_n[n]:
                 self.env_simulation = 1
                 self.end_trial = n
                 break
-
         # trading_agent.collect_data()  # Function that stores the info, associated to agent_class
         # Return of this function
         self.env_simulation = 1
         return self.env_simulation
 
-    def update_state_reward(self, action_n, state_n_1, rd_signal, target):
+    def update_state(self, action_n, state_n_1, rd_signal, target):
         # Update state_n and reward_n
         energy_n = self.offers_info[action_n, 0] if rd_signal == 1 else 0
         energy_n = (target - state_n_1) if state_n_1 + energy_n > target else energy_n
 
         action_n = np.array([action_n, energy_n])
-        reward_n = self.offers_info[int(action_n[0]),2] * action_n[1]
         state_n = state_n_1 + action_n[1]
-        return action_n, state_n, reward_n
+        return action_n, state_n
+
+    def reward_fun(self, data, signal):
+        idx = int(data[0])
+        return self.offers_info[idx, 2] * self.offers_info[idx, 0] * signal
 
     def offers_sample(self, target): # Function to sample offers [1,...,j] per trial_n
         # Energy offering sampling - Depends on the target (energy from trading_agent)
@@ -137,9 +134,9 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         self.theta_n = np.zeros(env.no_trials) # Cumulative probability of success per trial_n
         self.theta_regret_n = np.zeros(env.no_trials) # Probability of the opportunity cost per trial_n (Or regret probability)
         # Store info over action space [1,...,action_size], REMEMBER action_size is equal to the number of slot_machines
-        self.a = np.ones(env.no_offers) # Array with cumulative reward per time_t for each var_n (slot_machine)
-        self.b = np.ones(env.no_offers) # Array with the count of times var_n was chosen
-        self.var_theta = np.ones(env.no_offers)  # Cumulative probability of success (Prob = sum(reward_t) / sum(no_times_t)) per var_n (action) that is updated over time_t
+        self.a = np.zeros(env.no_offers) # Array with cumulative reward per time_t for each var_n (slot_machine)
+        self.b = np.zeros(env.no_offers) # Array with the count of times var_n was chosen
+        self.var_theta = np.zeros(env.no_offers)  # Cumulative probability of success (Prob = sum(reward_t) / sum(no_times_t)) per var_n (action) that is updated over time_t
         self.data = None  # DataFrame storing the final info of each episode simulation
         # Parameters - Prosumer info
         self.energy_target = 0 # Energy target
@@ -155,16 +152,20 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
     def update_regret_prob(self): # Function to update the arrays over time_t and var_n
         # Update the Cumulative probability for the var_n. It is updated everytime var_n is selected by action_t
         self.a[self.action_choice] += self.reward_n[self.id_n]
-        ## Classic MAD reward_n function ~ {0, 1} as Binomial distribution
-        # self.b counts the no of times var_n was selected for self.policy_opt --> 'Random' and 'e-Greedy'
-        # When self.policy_opt --> 'Thompson-Sampler', self.b increments 1 when var_n has reward = 0 (we miss). This way the cumulative_reward (self.a) is spreaded on the Beta Bernoulli distribution
-        # It is like the ratio of self.a/self.b drops everytime we miss revenue with var_n (machine). Increase the change of another var_n being selected later on
-        self.b[self.action_choice] += 1 - self.reward_n_signal[self.id_n] if self.policy_opt == 'Thompson_Sampler_policy' else self.energy_target
+
+        ## Now only for random and e-greedy, Thompson deal later
+        self.b[self.action_choice] += self.env.reward_fun(self.action_n[:,self.id_n], 1)
+        # ## Classic MAD reward_n function ~ {0, 1} as Binomial distribution
+        # # self.b counts the no of times var_n was selected for self.policy_opt --> 'Random' and 'e-Greedy'
+        # # When self.policy_opt --> 'Thompson-Sampler', self.b increments 1 when var_n has reward = 0 (we miss). This way the cumulative_reward (self.a) is spreaded on the Beta Bernoulli distribution
+        # # It is like the ratio of self.a/self.b drops everytime we miss revenue with var_n (machine). Increase the change of another var_n being selected later on
+        # self.b[self.action_choice] += 1 - self.reward_n_signal[self.id_n] if self.policy_opt == 'Thompson_Sampler_policy' else self.energy_target
         # Tweak the var_theta when we have as risk function r_n := sigma(action_n) * Energy(action_n)
         # Only valid for the 'Random' and 'e-Greedy' policies
 
         # Update the Prob of all variants_n (slot machines) of the action space [1,...,self.env.action_size]
         self.var_theta = self.a / self.b
+        self.var_theta = np.nan_to_num(self.var_theta, nan=0)
 
         # Calculate for time_t the Cumulative probability of regret (opportunity cost)
         if self.policy_opt == 'Random_policy':

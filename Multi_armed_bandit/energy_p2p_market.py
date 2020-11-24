@@ -44,14 +44,14 @@ for e in range(no_episodes):
     regret_score[1, e, :] = eg_agent.theta_regret_n
     # plt_title[0] = f'e-Greedy policy across {no_trials} trials of episode {e}'
     # plot_action_choice(eg_agent, ax_label, plt_title)
-    # Simulate the Thompson-Sampler-policy
-    ts_agent = trading_agent(env, 'Thompson_Sampler_policy')
-    env.run(ts_agent)
-    rd_score[2, e] = ts_agent.total_reward
-    rd_score_trial[2, e, :] = ts_agent.reward_n
-    regret_score[2, e, :] = ts_agent.theta_regret_n
-    # plt_title[0] = f'Thompson-Sampler policy across {no_trials} trials of episode {e}'
-    # plot_action_choice(ts_agent, ax_label, plt_title)
+    # # Simulate the Thompson-Sampler-policy
+    # ts_agent = trading_agent(env, 'Thompson_Sampler_policy')
+    # env.run(ts_agent)
+    # rd_score[2, e] = ts_agent.total_reward
+    # rd_score_trial[2, e, :] = ts_agent.reward_n
+    # regret_score[2, e, :] = ts_agent.theta_regret_n
+    # # plt_title[0] = f'Thompson-Sampler policy across {no_trials} trials of episode {e}'
+    # # plot_action_choice(ts_agent, ax_label, plt_title)
 
 print(f'All {no_episodes} Episodes are done')
 # Plot of regret probability comparing the 3 policies here
