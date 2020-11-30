@@ -147,7 +147,7 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         # self.b counts the no of times var_n was selected for self.policy_opt --> 'Random' and 'e-Greedy'
         # When self.policy_opt --> 'Thompson-Sampler', self.b increments 1 when var_n has reward = 0 (we miss). This way the cumulative_reward (self.a) is spreaded on the Beta Bernoulli distribution
         # It is like the ratio of self.a/self.b drops everytime we miss revenue with var_n (machine). Increase the change of another var_n being selected later on
-        self.b[self.action_choice] += 1 - self.reward_n_bin[self.id_n] if self.policy_opt == 'Thompson_Sampler_policy' else 1
+        self.b[self.action_choice] += 1 - self.reward_n[self.id_n] if self.policy_opt == 'Thompson_Sampler_policy' else 1
         # Update the Prob of all variants_n (slot machines) of the action space [1,...,self.env.action_size]
         self.var_theta = self.a / self.b
 

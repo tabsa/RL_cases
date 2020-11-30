@@ -7,7 +7,7 @@
 # We use Deep Neural Network (NN) to implement the Q-learning, basically the NN learns the reward function.
 # This way, Q-table is updated when the NN is learning the Q-function over the episodes in our RL framework.
 
-# Import packages
+#%% Import packages
 # Typical pkg
 import numpy as np
 import random as rnd
@@ -21,7 +21,7 @@ from keras.models import load_model
 from keras.layers import Dense # Defines the type of connection in a layer (input_neuron <-> output_neuron). It is a regular connection out = acti(wei * in + bias), and most commonly used layer.
 from keras.optimizers import Adam
 
-# Create class trader agent
+#%% Create class trader agent
 class trader_agent:
     def __init__(self, state_size, is_eval=False, model_name=""):
         self.state_size = state_size  # Normalized previous days
