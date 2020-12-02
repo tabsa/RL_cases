@@ -40,12 +40,13 @@ def getState(data, t, n):
 	return np.array([res])
 
 #%% Main script
-stock_name = 'FB.csv'
+stock_name = 'FB'
 window_size = 10
 episode_count = 200
 data = getStockDataVec(stock_name)
 #data = pd.read_csv(stock_name, index_col='Date')
-stock_vol = data.shape[0]
+#stock_vol = data.shape[0]
+stock_vol = len(data)
 
 agent = trader_agent(window_size)
 batch_size = 32
