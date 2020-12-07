@@ -19,7 +19,7 @@
 
 #%% Import packages
 import numpy as np
-import numpy.matlib
+import random as rnd
 import pandas as pd
 from scipy.stats import beta
 from collections import deque # Double queue that works similar as list, and with faster time when using append
@@ -116,22 +116,23 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         # Parameters - Environment info
         self.env = env  # Call the trading_env class we build above
         self.sim_shape = (env.no_offers, no_sample)  # Full shape of the simulation - action_size x no_episodes (no_samples)
-        self.memory = deque(maxlen=1000)  # Creates an empty queue with max lenght of 1000, it will work as memory of the NN
         # Parameters - RL_Agent info
         self.is_reset = False
+        self.is_exp_replay = False
+        self.memory = deque(maxlen=1000) # Creates an empty queue with max lenght of 1000, it will work as memory of the NN
         self.prosumer_type = prosumer_type
-        self.policy_opt = policy_opt  # String with the policy strategy
-        self.no_sample = no_sample  # Number of samples for the simulation
-        self.time_learning = time_learning  # Number of time_t for learning, e.g. 1000 time_steps (trials) given for learning
-        self.e_greedy = e_greedy  # Probability for exploring (epsilon_greedy)
-        self.e_exploit = 1 - e_greedy  # Probability for exploiting (1 - epsilon_greedy)
-        self.ep = np.random.uniform(0, 1, size=env.no_trials)  # rand.prob for exploiting
+        self.policy_opt = policy_opt # String with the policy strategy
+        self.no_sample = no_sample # Number of samples for the simulation
+        self.time_learning = time_learning # Number of time_t for learning, e.g. 1000 time_steps (trials) given for learning
+        self.e_greedy = e_greedy # Probability for exploring (epsilon_greedy)
+        self.e_exploit = 1 - e_greedy # Probability for exploiting (1 - epsilon_greedy)
+        self.ep = np.random.uniform(0, 1, size=env.no_trials) # rand.prob for exploiting
         self.total_reward = 0
-        self.action_choice = 0  # Action decision to be used every trial_n
-        self.id_n = 0  # Index of trial_n
+        self.action_choice = 0 # Action decision to be used every trial_n
+        self.id_n = 0 # Index of trial_n
         # Store info over trial_n (action_t, state_t, reward_t)
         self.state_n = np.zeros(env.no_trials) # Settle energy for each trial_n
-        #self.accept_energy = np.zeros(env.no_trials)  # Accepted energy for every state_t per trial_n
+        #self.accept_energy = np.zeros(env.no_trials) # Accepted energy for every state_t per trial_n
         self.action_n = np.zeros((2, env.no_trials)) # Arrays No.Agents x No.Trials [0, 1]
         self.reward_n = np.zeros(env.no_trials)
         self.theta_n = np.zeros(env.no_trials) # Cumulative probability of success per trial_n
@@ -144,11 +145,11 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         # self.b: Array with the count of times var_n was chosen
         # self.var_theta = self.a / self.b
         # self.var_theta: Cumulative probability of success (Prob = sum(reward_t) / sum(no_times_t)) per var_n (action) that is updated over time_t
-        self.data = None  # DataFrame storing the final info of each episode simulation
+        self.data = None # DataFrame storing the final info of each episode simulation
         # Parameters - Prosumer info
         self.energy_target_bounds = e_target_bd # Max and Min energy per target_time. Energy_target <0 Consumer; >0 Producer
 
-    def reset(self):
+    def reset(self): # Reset operation after episode is done
         self.env.reset()
         self.action_choice = 0
         self.total_reward = 0
@@ -160,9 +161,10 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         self.theta_n = np.zeros(self.env.no_trials)
         self.theta_regret_n = np.zeros(self.env.no_trials)
         self.ep = np.random.uniform(0, 1, size=self.env.no_trials)
-        self.a = np.zeros(self.env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(self.env.no_offers)
-        self.b = np.zeros(self.env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(self.env.no_offers)
-        self.var_theta = np.zeros(self.env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(self.env.no_offers)
+        if not self.is_exp_replay:
+            self.a = np.zeros(self.env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(self.env.no_offers)
+            self.b = np.zeros(self.env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(self.env.no_offers)
+            self.var_theta = np.zeros(self.env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(self.env.no_offers)
         self.is_reset = True
 
     def collect_data(self):  # Function to manipulate data into DataFrames
@@ -206,6 +208,36 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
             self.action_choice = self.tpSampler_policy()
         # Return the result
         return self.action_choice
+
+    def exp_replay(self, batch_size): # Training the theta per action over episodes e
+        ## Per episode c, we update the var_theta so that we can have a better guess for action_n
+        # mini_batch has all episodes i in the memory - Selected randomly
+        mini_batch = rnd.sample(self.memory, batch_size)
+        # Theta for episode c - Prob as weighted average per final_state and gamma_bth
+        theta_rd_c = np.zeros(self.env.no_offers) # self.a - sum of rewards per action_n
+        theta_at_c = np.zeros(self.env.no_offers) # self-b - no. times action_n was selected
+        total_state = 0
+        # For-loop to calculate var_theta per episode i in mini_batch
+        for theta_rd_i, theta_at_i, total_rd_i, final_step_i, final_state_i in mini_batch: # Get elements per deque (episode i)
+            gamma_i = total_rd_i / final_step_i # gamma per episode i
+            theta_rd_c += final_state_i * gamma_i * theta_rd_i # Weighted sum
+            theta_at_c += final_state_i * gamma_i * theta_at_i
+            total_state += final_state_i
+        # Get the average result by dividing for total_state
+        theta_rd_c = theta_rd_c / total_state # avg_sum_reward per action_n - avg_a
+        theta_at_c = theta_at_c / total_state # avg_no.times per action_n - avg_b
+        theta_c = theta_rd_c / theta_at_c # var_theta_avg = avg_a / avg_b
+        theta_c = np.nan_to_num(theta_c, nan=0)
+        # Return the final var_theta_avg
+        self.a = theta_rd_c.round(1)
+        self.b = theta_at_c.round(1)
+        self.var_theta = theta_c.round(1)
+        if self.policy_opt == 'Thompson_Sampler_policy':
+            self.a += 1
+            self.b += 1
+            self.var_theta = self.a / self.b
+            self.var_theta = self.var_theta.round(1)
+        self.is_exp_replay = True
 
     def rand_policy(self): # Implements the random choice algorithm
         return np.random.choice(self.env.offers_id)
