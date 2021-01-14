@@ -19,18 +19,16 @@
 
 #%% Import packages
 import numpy as np
-import numpy.matlib
-import matplotlib.pyplot as plt
-import seaborn as sns
+import random as rnd
 import pandas as pd
 from scipy.stats import beta
+from collections import deque # Double queue that works similar as list, and with faster time when using append
 
 #%% Build the Environment
 class trading_env:
     def __init__(self, no_offers, no_trials, offer_file, sample_type=None, sample_seed=None, no_preferences=2):  # Define parameters of the environment
         # time-space parameters
         self.no_trials = no_trials  # Time-step of the energy P2P market in the RL framework, duration of each episode [1,...,no_trials]
-        self.env_simulation = 0  # Flag indicating the simulation is completed
         self.end_trial = 0
         self.env_size = (no_offers, no_trials)
         # Offers parameters
@@ -42,11 +40,20 @@ class trading_env:
         self.offers_info = np.zeros((no_offers, 3))
         self.preference = np.zeros((no_offers, no_preferences))
         self.sigma_n = np.zeros((no_offers, no_trials))
+        # Environment parameters
+        self.env_simulation = 0  # Flag indicating the simulation is completed
+        self.is_reset = False
 
-    def run(self, trading_agent):  # Run the trading_env
+    def reset(self): # Reset env so that we use for another episode
+        self.end_trial = 0
+        self.env_simulation = 0
+        self.sigma_n = np.zeros((self.no_offers, self.no_trials))
+        self.is_reset = True
+
+    def run(self, trading_agent, epi):  # Run the trading_env
         # Run the simulation, environment response, to the agent action per time_t [1,...,no_trials]
         if self.sample_type == 'External_sample':
-            trading_agent.energy_target = self.sample_seed
+            trading_agent.energy_target = self.sample_seed[epi] # seed of episode id (epi)
         else:
             trading_agent.energy_target = trading_agent.profile_sampling()  # Energy value as Target, where market.offers have reach from [1,...,no_trials]
         target_T = trading_agent.energy_target
@@ -62,16 +69,15 @@ class trading_env:
             state_n_1 = trading_agent.state_n[n - 1] if n > 0 else 0 # state_n-1
             trading_agent.action_n[:, n], trading_agent.state_n[n] = self.update_state_reward(action_n, state_n_1, trading_agent.reward_n[n], target_T)
             trading_agent.total_reward += trading_agent.reward_n[n] # Total reward over n steps
-            trading_agent.update_regret_prob()  # Update of regret probability
+            trading_agent.update_regret_prob(n)  # Update of regret probability
             # Termination condition
-            if target_T == trading_agent.state_n[n]:
+            if target_T == trading_agent.state_n[n] or n == self.no_trials-1: # E_target is reached OR final step_n is reached
                 self.env_simulation = 1
                 self.end_trial = n
                 break
-
-        # trading_agent.collect_data()  # Function that stores the info, associated to agent_class
+        # Collect the output of the agent
+        trading_agent.collect_data()
         # Return of this function
-        self.env_simulation = 1
         return self.env_simulation
 
     def update_state_reward(self, action_n, state_n_1, reward_n, target):
@@ -104,44 +110,84 @@ class trading_env:
 
 #%% Build the RL_agent and represented prosumer_i
 class trading_agent: # Class of RL_agent to represent the prosumer i
-    def __init__(self, env, policy_opt, prosumer_type=None, no_sample=None, time_learning=None, e_greedy=0.05):
+    def __init__(self, env, e_target_bd, policy_opt, prosumer_type=None, no_sample=None, time_learning=None, e_greedy=0.05):
         # Parameters - Environment info
         self.env = env  # Call the trading_env class we build above
         self.sim_shape = (env.no_offers, no_sample)  # Full shape of the simulation - action_size x no_episodes (no_samples)
         # Parameters - RL_Agent info
+        self.is_reset = False
+        self.is_exp_replay = False
+        self.memory = deque(maxlen=1000) # Creates an empty queue with max lenght of 1000, it will work as memory of the NN
         self.prosumer_type = prosumer_type
-        self.policy_opt = policy_opt  # String with the policy strategy
-        self.no_sample = no_sample  # Number of samples for the simulation
-        self.time_learning = time_learning  # Number of time_t for learning, e.g. 1000 time_steps (trials) given for learning
-        self.e_greedy = e_greedy  # Probability for exploring (epsilon_greedy)
-        self.e_exploit = 1 - e_greedy  # Probability for exploiting (1 - epsilon_greedy)
-        self.ep = np.random.uniform(0, 1, size=env.no_trials)  # FIGURE IT OUT
+        self.policy_opt = policy_opt # String with the policy strategy
+        self.no_sample = no_sample # Number of samples for the simulation
+        self.time_learning = time_learning # Number of time_t for learning, e.g. 1000 time_steps (trials) given for learning
+        self.e_greedy = e_greedy # Probability for exploring (epsilon_greedy)
+        self.e_exploit = 1 - e_greedy # Probability for exploiting (1 - epsilon_greedy)
+        self.ep = np.random.uniform(0, 1, size=env.no_trials) # rand.prob for exploiting
         self.total_reward = 0
-        self.action_choice = 0  # Action decision to be used every trial_n
-        self.id_n = 0  # Index of trial_n
+        self.action_choice = 0 # Action decision to be used every trial_n
+        self.id_n = 0 # Index of trial_n
         # Store info over trial_n (action_t, state_t, reward_t)
         self.state_n = np.zeros(env.no_trials) # Settle energy for each trial_n
-        #self.accept_energy = np.zeros(env.no_trials)  # Accepted energy for every state_t per trial_n
+        #self.accept_energy = np.zeros(env.no_trials) # Accepted energy for every state_t per trial_n
         self.action_n = np.zeros((2, env.no_trials)) # Arrays No.Agents x No.Trials [0, 1]
         self.reward_n = np.zeros(env.no_trials)
         self.theta_n = np.zeros(env.no_trials) # Cumulative probability of success per trial_n
         self.theta_regret_n = np.zeros(env.no_trials) # Probability of the opportunity cost per trial_n (Or regret probability)
         # Store info over action space [1,...,action_size], REMEMBER action_size is equal to the number of slot_machines
-        self.a = np.ones(env.no_offers) # Array with cumulative reward per time_t for each var_n (slot_machine)
-        self.b = np.ones(env.no_offers) # Array with the count of times var_n was chosen
-        self.var_theta = np.ones(env.no_offers)  # Cumulative probability of success (Prob = sum(reward_t) / sum(no_times_t)) per var_n (action) that is updated over time_t
-        self.data = None  # DataFrame storing the final info of each episode simulation
+        self.a = np.ones(env.no_offers) #if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(env.no_offers)
+        self.b = np.ones(env.no_offers) #if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(env.no_offers)
+        self.var_theta = np.ones(env.no_offers) #if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(env.no_offers)
+        # self.a: Array with cumulative reward per time_t for each var_n (slot_machine)
+        # self.b: Array with the count of times var_n was chosen
+        # self.var_theta = self.a / self.b
+        # self.var_theta: Cumulative probability of success (Prob = sum(reward_t) / sum(no_times_t)) per var_n (action) that is updated over time_t
         # Parameters - Prosumer info
-        self.energy_target_bounds = np.array([2.05, 15]) # Max and Min energy per target_time. Energy_target <0 Consumer; >0 Producer
+        self.energy_target_bounds = e_target_bd # Max and Min energy per target_time. Energy_target <0 Consumer; >0 Producer
+        # Output data
+        self.outcome = []
+        self.policy_sol = np.zeros((6, env.no_trials))
+        self.data = None  # DataFrame storing the final info of each episode simulation
+
+    def reset(self): # Reset operation after episode is done
+        self.env.reset()
+        self.action_choice = 0
+        self.total_reward = 0
+        self.energy_target = 0
+        self.id_n = 0
+        self.action_n = np.zeros((2, self.env.no_trials))
+        self.reward_n = np.zeros(self.env.no_trials)
+        self.state_n = np.zeros(self.env.no_trials)
+        self.theta_n = np.zeros(self.env.no_trials)
+        self.theta_regret_n = np.zeros(self.env.no_trials)
+        self.ep = np.random.uniform(0, 1, size=self.env.no_trials)
+        if not self.is_exp_replay:
+            self.a = np.zeros(self.env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(self.env.no_offers)
+            self.b = np.zeros(self.env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(self.env.no_offers)
+            self.var_theta = np.zeros(self.env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(self.env.no_offers)
+        self.is_reset = True
 
     def collect_data(self):  # Function to manipulate data into DataFrames
-        self.data = pd.DataFrame(dict(action=self.action_t, reward=self.reward_t, regret=self.regret_t))
+        # Get statistical results
+        end_n = self.id_n
+        end_theta = self.theta_n[end_n]
+        avg_theta = self.theta_n[0:end_n].mean()
+        std_theta = self.theta_n[0:end_n].std()
+        end_regret = self.theta_regret_n[end_n]
+        avg_regret = self.theta_regret_n[0:end_n].mean()
+        std_regret = self.theta_regret_n[0:end_n].std()
+        self.outcome.append([self.total_reward, self.id_n, self.energy_target, self.state_n[end_n],
+                             end_theta, avg_theta, std_theta, end_regret, avg_regret, std_regret])
+        self.policy_sol = np.vstack((self.action_n, self.state_n, self.reward_n, self.theta_n, self.theta_regret_n))
+        #self.data = pd.DataFrame(dict(action=self.action_t, reward=self.reward_t, regret=self.regret_t))
 
     def profile_sampling(self): # Function to generate/collect the energy profile of prosumer_i
         ## Run a Uniform sampling - Single value but it can be a time-series
         return np.random.uniform(low=self.energy_target_bounds[0], high=self.energy_target_bounds[1])
 
-    def update_regret_prob(self): # Function to update the arrays over time_t and var_n
+    def update_regret_prob(self, step): # Function to update the arrays over time_t and var_n
+        self.id_n = step # id_n equals to step_n of env.run. We synchronize internal id_n with environment loop.
         # Update the Cumulative probability for the var_n. It is updated everytime var_n is selected by action_t
         self.a[self.action_choice] += self.reward_n[self.id_n]
         # self.b counts the no of times var_n was selected for self.policy_opt --> 'Random' and 'e-Greedy'
@@ -150,19 +196,13 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         self.b[self.action_choice] += 1 - self.reward_n[self.id_n] if self.policy_opt == 'Thompson_Sampler_policy' else 1
         # Update the Prob of all variants_n (slot machines) of the action space [1,...,self.env.action_size]
         self.var_theta = self.a / self.b
+        self.var_theta = np.nan_to_num(self.var_theta, nan=0)
 
-        # Calculate for time_t the Cumulative probability of regret (opportunity cost)
-        if self.policy_opt == 'Random_policy':
-            # As random policy, the opportunity cost (theta) per time_t -- is the difference of the Max-Cum-Prob and Cum-Prob of var_n gets over time
-            self.theta_regret_n[self.id_n] = np.max(self.var_theta) - self.var_theta[self.action_choice]
-        elif self.policy_opt == 'e-greedy_policy' or self.policy_opt == 'Thompson_Sampler_policy':
-            # As e-greedy, the opportunity cost (theta) depends on NOT exploiting others 'non-seen' (less prob) var_n then var_n[self.action_choice]
-            # (1-e-greedy) of time_t the Agent will select the var_n with the highest self.var_theta, the regret comes on NOT exploring other action_options
-            self.theta_n[self.id_n] = self.var_theta[self.action_choice]
-            self.theta_regret_n[self.id_n] = np.max(self.theta_n) - self.var_theta[self.action_choice]
-
-        # Next state_n+1
-        self.id_n += 1 # time_t + 1
+        # Calculate for step_n the Cumulative probability of regret (opportunity cost)
+        self.theta_n[self.id_n] = self.var_theta[self.action_choice]
+        # The opportunity cost (regret) depends on NOT exploiting others 'non-seen' (less prob) var_n then var_n[self.action_choice]
+        # (1-e-greedy) of time_t the Agent will select the var_n with the highest self.var_theta, the regret comes on NOT exploring other action_options
+        self.theta_regret_n[self.id_n] = np.max(self.theta_n) - self.var_theta[self.action_choice]
 
     def action(self):  # Function to make the action of the agent over time_t
         if self.policy_opt == 'Random_policy':
@@ -176,6 +216,41 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
             self.action_choice = self.tpSampler_policy()
         # Return the result
         return self.action_choice
+
+    def exp_replay(self, batch_size): # Training the theta per action over episodes e
+        ## Per episode c, we update the var_theta so that we can have a better guess for action_n
+        # mini_batch has all episodes i in the memory - Selected randomly
+        mini_batch = rnd.sample(self.memory, batch_size)
+        # Theta for episode c - Prob as weighted average per final_state and gamma_bth
+        theta_rd_c = np.zeros(self.env.no_offers) # self.a - sum of rewards per action_n
+        theta_at_c = np.zeros(self.env.no_offers) # self-b - no. times action_n was selected
+        total_state = 0
+        # For-loop to calculate var_theta per episode i in mini_batch
+        for theta_rd_i, theta_at_i, total_rd_i, final_step_i, final_state_i in mini_batch: # Get elements per deque (episode i)
+            gamma_i = total_rd_i / final_step_i # gamma per episode i
+            theta_rd_c += final_state_i * gamma_i * theta_rd_i # Weighted sum
+            theta_at_c += final_state_i * gamma_i * theta_at_i
+            total_state += final_state_i
+        # Get the average result by dividing for total_state
+        theta_rd_c = theta_rd_c / total_state # avg_sum_reward per action_n - avg_a
+        theta_at_c = theta_at_c / total_state # avg_no.times per action_n - avg_b
+        theta_c = theta_rd_c / theta_at_c # var_theta_avg = avg_a / avg_b
+        theta_c = np.nan_to_num(theta_c, nan=0)
+        # Return the final var_theta_avg
+        self.a = theta_rd_c.round(1)
+        self.b = theta_at_c.round(1)
+        self.var_theta = theta_c.round(1)
+        if self.policy_opt == 'Thompson_Sampler_policy':
+            self.a += 1
+            self.b += 1
+            self.var_theta = self.a / self.b
+            self.var_theta = self.var_theta.round(1)
+        elif self.policy_opt == 'e-greedy_policy':
+            self.time_learning = 0
+            self.e_greedy = 0.05
+            self.e_exploit = 1 - self.e_greedy
+
+        self.is_exp_replay = True
 
     def rand_policy(self): # Implements the random choice algorithm
         return np.random.choice(self.env.offers_id)
