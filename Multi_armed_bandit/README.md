@@ -3,6 +3,7 @@ My examples in python to implement a RL agent for the MAD problem.
 
 ##  Supported material
 - Medium article explaining the MAD problem, available [here](https://towardsdatascience.com/solving-multiarmed-bandits-a-comparison-of-epsilon-greedy-and-thompson-sampling-d97167ca9a50)
+- Medium article about exploration vs exploitation phases, available [here](https://towardsdatascience.com/reinforcement-learning-demystified-exploration-vs-exploitation-in-multi-armed-bandit-setting-be950d2ee9f6)
 - Book about online learning, with MAD problem as well, available [here](https://arxiv.org/abs/1912.13213)
 
 ## Packages and Modules
