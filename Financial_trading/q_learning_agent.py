@@ -45,7 +45,7 @@ class trader_agent:
         model.add(Dense(units=8, activation="relu")) # 3rd-layer with input = 32 <-> output = 8. Weights.shape(8, 32)
         model.add(Dense(self.action_size, activation="linear")) # end-layer with input = 8 <-> output = 3 (action - Buy, Sell, Hold). Weights.shape(3, 8)
         model.compile(loss="mse", optimizer=Adam(lr=0.001))
-
+        # Return the NN model created
         return model
 
     def act(self, state): # Select the next action t+1
@@ -53,7 +53,7 @@ class trader_agent:
         if not self.is_eval and np.random.rand() <= self.epsilon:
             return rnd.randrange(self.action_size) # Takes random action to fill the Q-table
         # Exploitation phase - uses NN to predict the next action_t+1 based on the state_t
-        options = self.model.predict(state) # NN to predict the action t+1
+        options = self.model.predict(state.reshape((1,-1))) # NN to predict the action t+1
         return np.argmax(options[0]) # Returns the index of the max value of option.array
 
     def expReplay(self, batch_size): # Training of the NN over time t
@@ -66,11 +66,11 @@ class trader_agent:
         for state, action, reward, next_state, done in mini_batch:
             target = reward
             if not done:
-                target = reward + self.gamma * np.amax(self.model.predict(next_state)[0])
+                target = reward + self.gamma * np.amax(self.model.predict(next_state.reshape((1,-1))))
 
-            target_f = self.model.predict(state)
+            target_f = self.model.predict(state.reshape((1,-1)))
             target_f[0][action] = target
-            self.model.fit(state, target_f, epochs=1, verbose=0)
+            self.model.fit(state.reshape((1,-1)), target_f, epochs=1, verbose=0)
 
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
