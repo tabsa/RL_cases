@@ -8,20 +8,28 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
+import plotly.graph_objs as go
+import plotly.express as px
 
 #%% Plot parameters
 plt_colmap = plt.get_cmap("tab10", 15)
 sns.set_style("whitegrid")
 
 #%% Plot for the total reward over episodes
-def plot_reward_per_episode(score, plt_label, plt_marker, axis_label, plt_title):
+def plot_reward_per_episode(df_score, y_opt, plt_label, plt_marker, axis_label, plt_title):
     # Get the plot parameters
-    no_RL_agents = score.shape[0]
-    no_episodes = score.shape[1]
+    no_RL_agents = len(df_score)
+    no_episodes = df_score[0].shape[0]
     plt.figure(figsize=(10,7))
     x = np.arange(0, no_episodes)
     for i in range(no_RL_agents):
-        plt.plot(x,score[i,:], label=plt_label[i], marker=plt_marker[i], linestyle='--')
+        # y-axis option
+        if y_opt == 'total_reward':
+            y = df_score[i]['total_rd']
+        elif y_opt == 'gamma_rate':
+            y = df_score[i]['total_rd'] / df_score[i]['final_step']  # gamma_per_epi (success rate)
+        # plot option: matplotlib or plotly
+        plt.plot(x,y, label=plt_label[i], marker=plt_marker[i], linestyle='--')
     # Legend and labels of the plot
     plt.legend(fontsize=16)
     plt.ylabel(axis_label[1], fontsize=16)
@@ -29,6 +37,24 @@ def plot_reward_per_episode(score, plt_label, plt_marker, axis_label, plt_title)
     plt.yticks(fontsize=16)
     plt.xlabel(axis_label[0], fontsize=16)
     plt.title(plt_title, fontsize=20)
+    plt.show()
+
+def plot_reward_distribution(df_score, plt_label, axis_label, plt_title):
+    # Get the plot parameters
+    no_RL_agents = len(df_score)
+    plt_colmap = plt.get_cmap("tab10", no_RL_agents)
+    plt.figure(figsize=(10,7))
+    color = ['blue', 'green', 'orange']
+    # For-loop for subplots
+    for i in range(no_RL_agents):
+        x = df_score[i]['final_state']
+        y = df_score[i]['total_rd']
+        #plt.subplot(no_RL_agents,1,i+1)
+        plt.scatter(x, y, label=plt_label[i], c=color[i])
+        # Legend and labels of the plot
+        plt.legend(fontsize=16)
+        plt.xlabel(axis_label[0], fontsize=16)
+        plt.ylabel(axis_label[1], fontsize=16)
     plt.show()
 
 def plot_action_choice(agent, axis_label, plt_title):
