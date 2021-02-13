@@ -59,7 +59,7 @@ class VI_agent:
             state = new_state # state = state_t+1
         return total_reward # Episode reward
 
-    def update_value_fun(self): # Calculate V(s_t) = max(a_t, sum(s_t+1, prob(s_t,a_t,s_t+1) * ( r(s_t,a_t) + gamma * V(s_t+1)) ) )
+    def value_iteration_update(self): # Calculate V(s_t) = max(a_t, sum(s_t+1, prob(s_t,a_t,s_t+1) * ( r(s_t,a_t) + gamma * V(s_t+1)) ) )
         # This function first needs to get the V(s_t+1), so knowing the value function of forward state_t+1
         # This way we get V(s_t) by choosing the max V(s_t+1) for all action_t of state_t
         # REMEMBER that each state_t we want to know what action_t maximizes its own Value
