@@ -4,8 +4,8 @@ The Value Iteration method calculates the values of the Q-function (states, acti
 
 ## Packages and Modules
 To run these examples you need:
-´´´
-PyTorch, Gym, TensorboardX
-´´´
+```
+Gym, Collections, TensorboardX
+```
 
 ## Basic examples
