@@ -4,6 +4,7 @@
 #%% Import packages
 import gym
 import collections
+import numpy as np
 
 #%% Class section
 class VI_agent:
@@ -37,13 +38,9 @@ class VI_agent:
 
     def select_action(self, state): # Select the action based on the Q(s,a) table - > max_a (Q(s,a))
         # This function does an extensive search of best action for the state_t
-        best_action, best_value = None, None
-        for action in range(self.env.action_space.n): # For-loop for every action in the env
-            action_value = self.eq_action_value(state, action) # Get the Q(s_t, a_t)
-            if best_value is None or best_value < action_value: # Go to the best action to do the max(Q(s,a))
-                best_value = action_value # Value fun ( Q(s,a) ) of the action a
-                best_action = action # best action
-        return best_action
+        # Get the list of Q(s_t, a_t) for all action in the state_t
+        action_value = [self.eq_action_value(state, action) for action in range(self.env.action_space.n)] # For-loop for every action in the env
+        return np.argmax(action_value) # Return the best action <- argmax[Q(s,a)]
 
     def episode_sim(self, env): # Run simulation per episode, AFTER the get_sample phase
         total_reward = 0.0
