@@ -16,6 +16,33 @@ import seaborn as sns
 from mad_class_code import MAD_env, Agent # Class of the MAD example
 from plot_class import plot_action_choice, plot_reward_per_episode, plot_regret_prob
 
+#%% Class section
+class dashboard:
+    def __init__(self, path):
+        self.path = path
+        self.data = self.get_data()
+        self.epi = self.data['simulation']['episodes']
+        self.steps = self.data['simulation']['trials']
+        self.no_agents = self.data['agents']['no']
+        self.agents_policy = self.data['agents']['id']
+
+    @st.cache()
+    def get_data(self):
+        return pkl.load(open(self.path, 'rb'))
+
+    def run_app(self):
+        self.head_title()
+        self.sec_reward()
+
+    def head_title(self):
+        st.title('Reinforcement learning models for Energy P2P markets')
+        st.write('Evaluate the results of the Multi Armed Bandit application.')
+        st.write('- Simulation done for **%s** episodes with **%s** steps per episode' %(self.epi, self.steps))
+        st.write('- Using %s policies per episode: %s' %(self.no_agents, self.agents_policy))
+
+    def sec_reward(self):
+        st.header('Total reward analysis')
+
 #%% Main script
 # Input of the Multi-Armed Bandit (MAD) problem
 slot_machi = np.arange(10) # Id of the slot machines

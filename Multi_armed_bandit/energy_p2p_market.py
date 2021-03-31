@@ -12,19 +12,19 @@ from p2p_class_code import p2p_env, market_agents, p2p_RL_agent # Class of the P
 from p2p_as_mad_class import trading_env, trading_agent
 from plot_class import *
 
-#%% Define parameters
-# Simulation
-no_trials = 40
+#%% Simulation parameters
+## Simulation
+no_trials = 40 # per episode
 no_episodes = 100
-no_RL_agents = 3
-batch_size = 20
-# P2P market
+no_RL_agents = 3 # each agent has a different policy
+batch_size = 20 # exp replay buffer
+## P2P market
 no_agents = 15
-target_bounds = np.array([3, 25])
-target_sample = np.random.uniform(low=target_bounds[0], high=target_bounds[1], size=no_episodes)
-# Output data
-#rd_score_trial = np.zeros((no_RL_agents, no_episodes, no_trials))
-#regret_score = np.zeros((no_RL_agents, no_episodes, no_trials)) # Regret probability per (epi, agent, trial)
+#target_bounds = np.array([3, 25])
+#target_sample = np.random.uniform(low=target_bounds[0], high=target_bounds[1], size=no_episodes)
+target_bounds = 15
+target_sample = target_bounds * np.ones(no_episodes)
+## Output data
 agent_list = [] # List with all RL agent
 outcome_agent = [] # List of outcome DF per RL agent
 # Name of the elements for the outcome_agent DF
@@ -32,9 +32,9 @@ df_col_name = ['total_rd', 'final_step', 'energy_target', 'final_state', 'final_
                 'mean_theta', 'std_theta', 'final_regret', 'mean_regret', 'std_regret']
 policy_agent = [] # List of policy solutions (array) per RL agent
 policy_sol_epi = np.zeros((6, no_trials, no_episodes)) # Array to store policy solutions per episode
-
+## Saving file
 wk_dir = os.getcwd() # Define other if you want
-out_filename = 'sim_results_v1.pkl'
+out_filename = 'sim_results_fixed_target_15.pkl'
 out_filename = os.path.join(wk_dir, out_filename)
 
 #%% Create environment and agent
@@ -91,6 +91,6 @@ data['agents'] = agents
 data['simulation'] = simulation
 data['outcome'] = outcome_agent
 data['policy'] = policy_agent
-file =  open(out_filename, 'wb')
+file = open(out_filename, 'wb')
 pkl.dump(data, file)
 file.close()
