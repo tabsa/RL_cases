@@ -15,15 +15,17 @@ from plot_class import *
 #%% Simulation parameters
 ## Simulation
 no_trials = 40 # per episode
-no_episodes = 100
+no_episodes = 200
 no_RL_agents = 3 # each agent has a different policy
 batch_size = 20 # exp replay buffer
 ## P2P market
 no_agents = 15
 #target_bounds = np.array([3, 25])
 #target_sample = np.random.uniform(low=target_bounds[0], high=target_bounds[1], size=no_episodes)
-target_bounds = 15
-target_sample = target_bounds * np.ones(no_episodes)
+#target_bounds = 50
+#target_sample = target_bounds * np.ones(no_episodes)
+target_bounds = np.arange(start=5, stop=51, step=5)
+target_sample = np.repeat(target_bounds, 20)
 ## Output data
 agent_list = [] # List with all RL agent
 outcome_agent = [] # List of outcome DF per RL agent
@@ -34,7 +36,7 @@ policy_agent = [] # List of policy solutions (array) per RL agent
 policy_sol_epi = np.zeros((6, no_trials, no_episodes)) # Array to store policy solutions per episode
 ## Saving file
 wk_dir = os.getcwd() # Define other if you want
-out_filename = 'sim_results_fixed_target_15.pkl'
+out_filename = 'sim_results_start_5_end_50.pkl'
 out_filename = os.path.join(wk_dir, out_filename)
 
 #%% Create environment and agent
