@@ -15,17 +15,17 @@ from plot_class import *
 #%% Simulation parameters
 ## Simulation
 no_trials = 40 # per episode
-no_episodes = 200
+no_episodes = 100
 no_RL_agents = 3 # each agent has a different policy
 batch_size = 20 # exp replay buffer
 ## P2P market
 no_agents = 15
 #target_bounds = np.array([3, 25])
 #target_sample = np.random.uniform(low=target_bounds[0], high=target_bounds[1], size=no_episodes)
-#target_bounds = 50
-#target_sample = target_bounds * np.ones(no_episodes)
-target_bounds = np.arange(start=5, stop=51, step=5)
-target_sample = np.repeat(target_bounds, 20)
+target_bounds = 15
+target_sample = target_bounds * np.ones(no_episodes)
+#target_bounds = np.arange(start=5, stop=51, step=5)
+#target_sample = np.repeat(target_bounds, 20)
 ## Output data
 agent_list = [] # List with all RL agent
 outcome_agent = [] # List of outcome DF per RL agent
@@ -36,7 +36,7 @@ policy_agent = [] # List of policy solutions (array) per RL agent
 policy_sol_epi = np.zeros((6, no_trials, no_episodes)) # Array to store policy solutions per episode
 ## Saving file
 wk_dir = os.getcwd() # Define other if you want
-out_filename = 'sim_results_start_5_end_50.pkl'
+out_filename = 'sim_results_fixed_target_15_exp_replay.pkl'
 out_filename = os.path.join(wk_dir, out_filename)
 
 #%% Create environment and agent
@@ -59,12 +59,10 @@ for agent in agent_list: # For-loop per RL agent
             env.run(agent, e) # Run environment, inputs we have RL_agent and episode id
             # Store info in the memory
             agent.memory.append((agent.a, agent.b, agent.total_reward, agent.id_n, agent.state_n[agent.id_n]))
-            # if len(agent.memory) > batch_size and len(agent.memory) <= 50:
-            #     agent.exp_replay(batch_size)
+            if len(agent.memory) > batch_size: # and len(agent.memory) <= 50:
+                agent.exp_replay(batch_size)
             # Store final results in np.arrays
             policy_sol_epi[:, :, e] = agent.policy_sol
-            #rd_score_trial[ag, e, :] = agent.reward_n
-            #regret_score[ag, e, :] = agent.theta_regret_n
         # Reset of both agent and environment
         agent.reset()
 

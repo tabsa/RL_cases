@@ -59,6 +59,7 @@ class trading_env:
         target_T = trading_agent.energy_target
         self.offers_sample(target_T)
         for n in range(self.no_trials):  # per trial_n
+            trading_agent.id_n = n  # id_n equals to step_n of env.run. We synchronize internal id_n with environment loop.
             #### Agent choice in step n ####
             # Agent makes action in trial_n - action_n
             action_n = trading_agent.action()  # Calls action function of agent_class
@@ -136,9 +137,9 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         self.theta_n = np.zeros(env.no_trials) # Cumulative probability of success per trial_n
         self.theta_regret_n = np.zeros(env.no_trials) # Probability of the opportunity cost per trial_n (Or regret probability)
         # Store info over action space [1,...,action_size], REMEMBER action_size is equal to the number of slot_machines
-        self.a = np.ones(env.no_offers) #if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(env.no_offers)
-        self.b = np.ones(env.no_offers) #if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(env.no_offers)
-        self.var_theta = np.ones(env.no_offers) #if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(env.no_offers)
+        self.a = np.zeros(env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(env.no_offers)
+        self.b = np.zeros(env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(env.no_offers)
+        self.var_theta = np.zeros(env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(env.no_offers)
         # self.a: Array with cumulative reward per time_t for each var_n (slot_machine)
         # self.b: Array with the count of times var_n was chosen
         # self.var_theta = self.a / self.b
@@ -187,7 +188,6 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         return np.random.uniform(low=self.energy_target_bounds[0], high=self.energy_target_bounds[1])
 
     def update_regret_prob(self, step): # Function to update the arrays over time_t and var_n
-        self.id_n = step # id_n equals to step_n of env.run. We synchronize internal id_n with environment loop.
         # Update the Cumulative probability for the var_n. It is updated everytime var_n is selected by action_t
         self.a[self.action_choice] += self.reward_n[self.id_n]
         # self.b counts the no of times var_n was selected for self.policy_opt --> 'Random' and 'e-Greedy'
@@ -195,8 +195,8 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         # It is like the ratio of self.a/self.b drops everytime we miss revenue with var_n (machine). Increase the change of another var_n being selected later on
         self.b[self.action_choice] += 1 - self.reward_n[self.id_n] if self.policy_opt == 'Thompson_Sampler_policy' else 1
         # Update the Prob of all variants_n (slot machines) of the action space [1,...,self.env.action_size]
-        self.var_theta = self.a / self.b
-        self.var_theta = np.nan_to_num(self.var_theta, nan=0)
+        self.var_theta[self.action_choice] = self.a[self.action_choice] / self.b[self.action_choice]
+        #self.var_theta = np.nan_to_num(self.a / self.b, nan=0)
 
         # Calculate for step_n the Cumulative probability of regret (opportunity cost)
         self.theta_n[self.id_n] = self.var_theta[self.action_choice]
