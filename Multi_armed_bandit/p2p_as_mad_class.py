@@ -70,7 +70,7 @@ class trading_env:
             state_n_1 = trading_agent.state_n[n - 1] if n > 0 else 0 # state_n-1
             trading_agent.action_n[:, n], trading_agent.state_n[n] = self.update_state_reward(action_n, state_n_1, trading_agent.reward_n[n], target_T)
             trading_agent.total_reward += trading_agent.reward_n[n] # Total reward over n steps
-            trading_agent.update_regret_prob(n)  # Update of regret probability
+            trading_agent.update_regret_prob()  # Update of regret probability
             # Termination condition
             if target_T == trading_agent.state_n[n] or n == self.no_trials-1: # E_target is reached OR final step_n is reached
                 self.env_simulation = 1
@@ -128,6 +128,7 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         self.ep = np.random.uniform(0, 1, size=env.no_trials) # rand.prob for exploiting
         self.total_reward = 0
         self.action_choice = 0 # Action decision to be used every trial_n
+        self.multi_play_k = np.zeros(self.env.no_offers) # K times partner j (K_j) is selected in the same episode
         self.id_n = 0 # Index of trial_n
         # Store info over trial_n (action_t, state_t, reward_t)
         self.state_n = np.zeros(env.no_trials) # Settle energy for each trial_n
@@ -157,6 +158,7 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         self.total_reward = 0
         self.energy_target = 0
         self.id_n = 0
+        self.multi_play_k = np.zeros(self.env.no_offers)
         self.action_n = np.zeros((2, self.env.no_trials))
         self.reward_n = np.zeros(self.env.no_trials)
         self.state_n = np.zeros(self.env.no_trials)
@@ -187,7 +189,7 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         ## Run a Uniform sampling - Single value but it can be a time-series
         return np.random.uniform(low=self.energy_target_bounds[0], high=self.energy_target_bounds[1])
 
-    def update_regret_prob(self, step): # Function to update the arrays over time_t and var_n
+    def update_regret_prob(self): # Function to update the arrays over time_t and var_n
         # Update the Cumulative probability for the var_n. It is updated everytime var_n is selected by action_t
         self.a[self.action_choice] += self.reward_n[self.id_n]
         # self.b counts the no of times var_n was selected for self.policy_opt --> 'Random' and 'e-Greedy'
@@ -195,8 +197,13 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         # It is like the ratio of self.a/self.b drops everytime we miss revenue with var_n (machine). Increase the change of another var_n being selected later on
         self.b[self.action_choice] += 1 - self.reward_n[self.id_n] if self.policy_opt == 'Thompson_Sampler_policy' else 1
         # Update the Prob of all variants_n (slot machines) of the action space [1,...,self.env.action_size]
-        self.var_theta[self.action_choice] = self.a[self.action_choice] / self.b[self.action_choice]
+        if not self.policy_opt == 'Thompson_Sampler_policy':
+            self.var_theta[self.action_choice] = self.a[self.action_choice] / self.b[self.action_choice]
+        else:
+            self.var_theta[self.action_choice] = self.a[self.action_choice] / (self.a[self.action_choice] + self.b[self.action_choice])
+
         #self.var_theta = np.nan_to_num(self.a / self.b, nan=0)
+        self.multi_play_k[self.action_choice] += 1 if self.reward_n[self.id_n] == 1 else 0 # Increments 1 everytime Rd_n(j) is 1 (success offer j)
 
         # Calculate for step_n the Cumulative probability of regret (opportunity cost)
         self.theta_n[self.id_n] = self.var_theta[self.action_choice]
@@ -204,20 +211,21 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         # (1-e-greedy) of time_t the Agent will select the var_n with the highest self.var_theta, the regret comes on NOT exploring other action_options
         self.theta_regret_n[self.id_n] = np.max(self.theta_n) - self.var_theta[self.action_choice]
 
-    def action(self):  # Function to make the action of the agent over time_t
+    def action(self):  # Function to make the action of the agent over step_n
+        multi_play = self.multi_play_k >= 3
         if self.policy_opt == 'Random_policy':
             # Algorithm with random choice
-            self.action_choice = self.rand_policy()
+            self.action_choice = self.rand_policy(multi_play)
         elif self.policy_opt == 'e-greedy_policy':
             # Algorithm with e-greedy approach
-            self.action_choice = self.eGreedy_policy()
+            self.action_choice = self.eGreedy_policy(multi_play)
         elif self.policy_opt == 'Thompson_Sampler_policy':
             # Algorithm with Thompson Sampler approach
-            self.action_choice = self.tpSampler_policy()
+            self.action_choice = self.tpSampler_policy(multi_play)
         # Return the result
         return self.action_choice
 
-    def exp_replay(self, batch_size): # Training the theta per action over episodes e
+    def exp_replay(self, batch_size, greedy=True): # Training the theta per action over episodes e
         ## Per episode c, we update the var_theta so that we can have a better guess for action_n
         # mini_batch has all episodes i in the memory - Selected randomly
         mini_batch = rnd.sample(self.memory, batch_size)
@@ -228,51 +236,57 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         # For-loop to calculate var_theta per episode i in mini_batch
         for theta_rd_i, theta_at_i, total_rd_i, final_step_i, final_state_i in mini_batch: # Get elements per deque (episode i)
             gamma_i = total_rd_i / final_step_i # gamma per episode i
-            theta_rd_c += final_state_i * gamma_i * theta_rd_i # Weighted sum
-            theta_at_c += final_state_i * gamma_i * theta_at_i
-            total_state += final_state_i
+            # Weighted sum
+            theta_rd_c += theta_rd_i if greedy else final_state_i * gamma_i * theta_rd_i
+            theta_at_c += theta_at_i if greedy else final_state_i * gamma_i * theta_at_i
+            total_state += 1 if greedy else final_state_i
         # Get the average result by dividing for total_state
-        theta_rd_c = theta_rd_c / total_state # avg_sum_reward per action_n - avg_a
-        theta_at_c = theta_at_c / total_state # avg_no.times per action_n - avg_b
-        theta_c = theta_rd_c / theta_at_c # var_theta_avg = avg_a / avg_b
+        theta_rd_c = theta_rd_c / total_state  # avg_sum_reward per action_n - avg_a
+        theta_at_c = theta_at_c / total_state  # avg_no.times per action_n - avg_b
+        # var_theta_avg = avg_a / avg_b
+        theta_c = theta_rd_c / theta_at_c if not self.policy_opt == 'Thompson_Sampler_policy' else theta_rd_c / (theta_rd_c + theta_at_c)
         theta_c = np.nan_to_num(theta_c, nan=0)
         # Return the final var_theta_avg
         self.a = theta_rd_c.round(1)
         self.b = theta_at_c.round(1)
         self.var_theta = theta_c.round(1)
-        if self.policy_opt == 'Thompson_Sampler_policy':
-            self.a += 1
-            self.b += 1
-            self.var_theta = self.a / self.b
-            self.var_theta = self.var_theta.round(1)
-        elif self.policy_opt == 'e-greedy_policy':
+        # if self.policy_opt == 'Thompson_Sampler_policy':
+        #     self.a += 1
+        #     self.b += 1
+        #     self.var_theta = self.a / self.b
+        #     self.var_theta = self.var_theta.round(1)
+        if self.policy_opt == 'e-greedy_policy':
             self.time_learning = 0
             self.e_greedy = 0.05
             self.e_exploit = 1 - self.e_greedy
 
         self.is_exp_replay = True
 
-    def rand_policy(self): # Implements the random choice algorithm
-        return np.random.choice(self.env.offers_id)
+    def rand_policy(self, mask): # Implements the random choice algorithm
+        mask_offers = self.env.offers_id[np.invert(mask)]
+        return int(np.random.choice(mask_offers))
 
-    def eGreedy_policy(self): # Implements the e-greedy algorithm to explore_exploit
+    def eGreedy_policy(self, mask): # Implements the e-greedy algorithm to explore_exploit
+        mask_offers = self.env.offers_id[np.invert(mask)]
+        mask_theta = np.ma.array(self.var_theta, mask= mask)
         # e_greedy indicates the Percentage of time used to explore the action_space (taking random choices)
         # If id_t < time_learning: Random_choice, Else: action = var_n[highest var_theta] (Highest probability of success)
-        aux = np.random.choice(self.env.offers_id) if self.id_n < self.time_learning else np.argmax(self.var_theta)
+        aux = np.random.choice(mask_offers) if self.id_n < self.time_learning else np.argmax(mask_theta)
 
         # Step that controls IF we choice Exploration or Exploitation
         # If ep_prob[id_t] < 1 - e_greedy: aux (best action), Else: Random_choice
-        aux = aux if self.ep[self.id_n] <= self.e_exploit else np.random.choice(self.env.offers_id)
+        aux = aux if self.ep[self.id_n] <= self.e_exploit else np.random.choice(mask_offers)
         # Return the result of the function
-        return aux
+        return int(aux)
 
-    def tpSampler_policy(self):
+    def tpSampler_policy(self, mask):
         # Thompson Sampler policy
         # Sampling a probability based on distribution (We assumed Beta Bernoulli) based on cumulative reward (self.a) and no. selected-times (self.b) per var_n
         # The Beta-dist captures the uncertainty per var_n that is changing over time_t...
         # Per time_t indicates the probablity of getting reward per var_n, it is dynamic over trials until the Beta-dist goes towards the var_n with highest reward
         # Rule of thumb - largest mean and smallest std.dev results in greater prob of being selected...
         # ...var_n with low revenue is expected a wider distribution with small mean and large std.dev resulting in high uncertainty for future action choice
-        self.var_theta = np.random.beta(self.a, self.b)
+        sample_theta = np.random.beta(self.a, self.b)
+        mask_theta = np.ma.array(sample_theta, mask= mask)
         # Select the var_n (machine) with highest expected revenue (based on cumulative probability over time_t)
-        return self.env.offers_id[np.argmax(self.var_theta)]
+        return int(np.argmax(mask_theta))

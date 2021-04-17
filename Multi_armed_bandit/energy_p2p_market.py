@@ -17,7 +17,7 @@ from plot_class import *
 no_trials = 40 # per episode
 no_episodes = 100
 no_RL_agents = 3 # each agent has a different policy
-batch_size = 20 # exp replay buffer
+batch_size = 10 # exp replay buffer
 ## P2P market
 no_agents = 15
 #target_bounds = np.array([3, 25])
@@ -43,9 +43,9 @@ out_filename = os.path.join(wk_dir, out_filename)
 env = trading_env(no_agents, no_trials, 'offers_input.csv', 'External_sample', target_sample)
 # Assign RL agents in the agent_list, each RL agent has a different policy strategy
 agent_policy = ['Random_policy', 'e-greedy_policy', 'Thompson_Sampler_policy']
-agent_list.append(trading_agent(env, target_bounds, agent_policy[0])) # Agent using the Random policy
-agent_list.append(trading_agent(env, target_bounds, agent_policy[1], time_learning=10, e_greedy=0.25)) # Agent using the e-Greedy policy
 agent_list.append(trading_agent(env, target_bounds, agent_policy[2])) # Agent using the Thompson-Sampler policy
+agent_list.append(trading_agent(env, target_bounds, agent_policy[1], time_learning=10, e_greedy=0.25)) # Agent using the e-Greedy policy
+agent_list.append(trading_agent(env, target_bounds, agent_policy[0])) # Agent using the Random policy
 
 #%% Simulation phase
 ag = 0  # id of agent
@@ -60,7 +60,7 @@ for agent in agent_list: # For-loop per RL agent
             # Store info in the memory
             agent.memory.append((agent.a, agent.b, agent.total_reward, agent.id_n, agent.state_n[agent.id_n]))
             if len(agent.memory) > batch_size: # and len(agent.memory) <= 50:
-                agent.exp_replay(batch_size)
+                agent.exp_replay(batch_size, greedy=True)
             # Store final results in np.arrays
             policy_sol_epi[:, :, e] = agent.policy_sol
         # Reset of both agent and environment
@@ -91,6 +91,6 @@ data['agents'] = agents
 data['simulation'] = simulation
 data['outcome'] = outcome_agent
 data['policy'] = policy_agent
-file = open(out_filename, 'wb')
-pkl.dump(data, file)
-file.close()
+#file = open(out_filename, 'wb')
+#pkl.dump(data, file)
+#file.close()
