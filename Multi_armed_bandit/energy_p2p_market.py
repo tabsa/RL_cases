@@ -17,7 +17,7 @@ from plot_class import *
 no_trials = 40 # per episode
 no_episodes = 100
 no_RL_agents = 3 # each agent has a different policy
-batch_size = 10 # exp replay buffer
+batch_size = 20 # exp replay buffer
 ## P2P market
 no_agents = 15
 #target_bounds = np.array([3, 25])
@@ -30,22 +30,24 @@ target_sample = target_bounds * np.ones(no_episodes)
 agent_list = [] # List with all RL agent
 outcome_agent = [] # List of outcome DF per RL agent
 # Name of the elements for the outcome_agent DF
-df_col_name = ['total_rd', 'final_step', 'energy_target', 'final_state', 'final_theta',
+df_col_name = ['mean_rd', 'final_step', 'energy_target', 'final_state', 'final_theta',
                 'mean_theta', 'std_theta', 'final_regret', 'mean_regret', 'std_regret']
 policy_agent = [] # List of policy solutions (array) per RL agent
 policy_sol_epi = np.zeros((6, no_trials, no_episodes)) # Array to store policy solutions per episode
+policy_distribution = []
+policy_estimate_dist = np.zeros((no_episodes, no_agents))
 ## Saving file
 wk_dir = os.getcwd() # Define other if you want
-out_filename = 'sim_results_fixed_target_15_exp_replay.pkl'
+out_filename = 'sim_results_fixed_target_15_new_version.pkl'
 out_filename = os.path.join(wk_dir, out_filename)
 
 #%% Create environment and agent
 env = trading_env(no_agents, no_trials, 'offers_input.csv', 'External_sample', target_sample)
 # Assign RL agents in the agent_list, each RL agent has a different policy strategy
 agent_policy = ['Random_policy', 'e-greedy_policy', 'Thompson_Sampler_policy']
+agent_list.append(trading_agent(env, target_bounds, agent_policy[0])) # Agent using the Random policy
 agent_list.append(trading_agent(env, target_bounds, agent_policy[1], time_learning=10, e_greedy=0.25)) # Agent using the e-Greedy policy
 agent_list.append(trading_agent(env, target_bounds, agent_policy[2])) # Agent using the Thompson-Sampler policy
-agent_list.append(trading_agent(env, target_bounds, agent_policy[0])) # Agent using the Random policy
 
 #%% Simulation phase
 ag = 0  # id of agent
@@ -58,20 +60,26 @@ for agent in agent_list: # For-loop per RL agent
         if agent.is_reset or e == 0:
             env.run(agent, e) # Run environment, inputs we have RL_agent and episode id
             # Store info in the memory
-            agent.memory.append((agent.a, agent.b, agent.total_reward, agent.id_n, agent.state_n[agent.id_n]))
+            agent.memory.append((agent.var_theta, agent.b, agent.thom_var ,agent.total_reward, agent.id_n, agent.state_n[agent.id_n]))
             if len(agent.memory) >= batch_size: # and len(agent.memory) <= 50:
                 agent.exp_replay(batch_size, greedy=True)
                 batch_size += 1 # Increase the batch size of previous episodes, to propagate the long-term memory
             # Store final results in np.arrays
             policy_sol_epi[:, :, e] = agent.policy_sol
+            policy_estimate_dist[e, :] = agent.Q_val_final
         # Reset of both agent and environment
         agent.reset()
 
+    # Store the outcome parameters:
     outcome_agent.append(pd.DataFrame(agent.outcome, columns=df_col_name))
     policy_agent.append(policy_sol_epi)
-    policy_sol_epi = np.zeros((6, no_trials, no_episodes)) # Reset the array for next agent in agent_list
+    policy_distribution.append(policy_estimate_dist)
+    # Reset the array for next agent in agent_list:
+    policy_sol_epi = np.zeros((6, no_trials, no_episodes))
+    policy_estimate_dist = np.zeros((no_episodes, no_agents))
     # Next agent (1st For-loop)
     ag += 1
+    batch_size = 20 # Reset batch_size
     print('\n')
 print(f'All {no_episodes} Episodes are done')
 
@@ -91,7 +99,8 @@ simulation['trials'] = no_trials
 data['agents'] = agents
 data['simulation'] = simulation
 data['outcome'] = outcome_agent
-data['policy'] = policy_agent
-#file = open(out_filename, 'wb')
-#pkl.dump(data, file)
-#file.close()
+data['policy_sol'] = policy_agent
+data['policy_dist'] = policy_distribution
+file = open(out_filename, 'wb')
+pkl.dump(data, file)
+file.close()

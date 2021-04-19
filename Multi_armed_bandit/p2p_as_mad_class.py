@@ -138,8 +138,9 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         self.theta_n = np.zeros(env.no_trials) # Cumulative probability of success per trial_n
         self.theta_regret_n = np.zeros(env.no_trials) # Probability of the opportunity cost per trial_n (Or regret probability)
         # Store info over action space [1,...,action_size], REMEMBER action_size is equal to the number of slot_machines
-        self.a = np.zeros(env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(env.no_offers)
+        #self.a = np.zeros(env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(env.no_offers)
         self.b = np.zeros(env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(env.no_offers)
+        self.thom_var = np.ones(env.no_offers) # Array to estimate the variance of the Beta distribution for the Thompson-Sampler policy
         self.var_theta = np.zeros(env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(env.no_offers)
         # self.a: Array with cumulative reward per time_t for each var_n (slot_machine)
         # self.b: Array with the count of times var_n was chosen
@@ -166,24 +167,26 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         self.theta_regret_n = np.zeros(self.env.no_trials)
         self.ep = np.random.uniform(0, 1, size=self.env.no_trials)
         if not self.is_exp_replay:
-            self.a = np.zeros(self.env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(self.env.no_offers)
+            #self.a = np.zeros(self.env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(self.env.no_offers)
             self.b = np.zeros(self.env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(self.env.no_offers)
+            self.thom_var = np.ones(self.env.no_offers)
             self.var_theta = np.zeros(self.env.no_offers) if self.policy_opt != 'Thompson_Sampler_policy' else np.ones(self.env.no_offers)
         self.is_reset = True
 
     def collect_data(self):  # Function to manipulate data into DataFrames
         # Get statistical results
         end_n = self.id_n
+        mean_rd = self.total_reward / (end_n+1)
         end_theta = self.theta_n[end_n]
         avg_theta = self.theta_n[0:end_n].mean()
         std_theta = self.theta_n[0:end_n].std()
         end_regret = self.theta_regret_n[end_n]
         avg_regret = self.theta_regret_n[0:end_n].mean()
         std_regret = self.theta_regret_n[0:end_n].std()
-        self.outcome.append([self.total_reward, self.id_n, self.energy_target, self.state_n[end_n],
+        self.outcome.append([mean_rd, end_n+1, self.energy_target, self.state_n[end_n],
                              end_theta, avg_theta, std_theta, end_regret, avg_regret, std_regret])
         self.policy_sol = np.vstack((self.action_n, self.state_n, self.reward_n, self.theta_n, self.theta_regret_n))
-        #self.data = pd.DataFrame(dict(action=self.action_t, reward=self.reward_t, regret=self.regret_t))
+        self.Q_val_final = self.var_theta
 
     def profile_sampling(self): # Function to generate/collect the energy profile of prosumer_i
         ## Run a Uniform sampling - Single value but it can be a time-series
@@ -193,19 +196,16 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         n = self.id_n # step n
         j_arm = self.action_choice # action n
         # Update the Value function for each partner j. It is updated everytime partner j is selected by action_n
-        self.a[j_arm] += self.reward_n[n]
-        # self.b counts the no of times var_n was selected for self.policy_opt --> 'Random' and 'e-Greedy'
-        # When self.policy_opt --> 'Thompson-Sampler', self.b increments 1 when var_n has reward = 0 (we miss). This way the cumulative_reward (self.a) is spreaded on the Beta Bernoulli distribution
-        # It is like the ratio of self.a/self.b drops everytime we miss revenue with var_n (machine). Increase the change of another var_n being selected later on
-        self.b[j_arm] += 1 - self.reward_n[n] if self.policy_opt == 'Thompson_Sampler_policy' else 1
+        # self.b counts the no of times partner j was selected
+        self.b[j_arm] += 1
+        # When self.policy_opt --> 'Thompson-Sampler', we have to calculate the Beta variance as well:
+        # self.thom_var: increments 1 when partner_j has reward = 0 (we miss). This way the Beta distribution is spreaded so more 'stochastic'
+        # It is like the ratio of rd_j / N_j drops everytime we miss revenue in j. Increase the change of another partner being selected later on
+        self.thom_var[j_arm] += 1 - self.reward_n[n] if self.policy_opt == 'Thompson_Sampler_policy' else 0
         # Update the Q-Value for the selected partner j (Estimated mean prob mu_j^n)
-        if not self.policy_opt == 'Thompson_Sampler_policy':
-            self.var_theta[j_arm] += (1/self.b[j_arm]) * (self.reward_n[n] - self.var_theta[j_arm])
-        else:
-            self.var_theta[j_arm] = self.a[j_arm] / (self.a[j_arm] + self.b[j_arm])
-
-        #self.var_theta = np.nan_to_num(self.a / self.b, nan=0)
-        self.multi_play_k[self.action_choice] += 1 if self.reward_n[n] == 1 else 0 # Increments 1 everytime Rd_n(j) is 1 (success offer j)
+        self.var_theta[j_arm] += (1 / self.b[j_arm]) * (self.reward_n[n] - self.var_theta[j_arm])
+        # Count the sucessfull times partner j was selected (only valid for the same episode)
+        self.multi_play_k[j_arm] += 1 if self.reward_n[n] == 1 else 0 # Increments 1 everytime Rd_n(j) is 1 (success offer j)
 
         # Calculate for step_n the Q-value function (that quantifies the expected return):
         Qval_n_1 = self.theta_n[n-1] if n>0 else 0 # n==0 we have 0
@@ -234,30 +234,28 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         mini_batch = rnd.sample(self.memory, batch_size)
         # Theta for episode c - Prob as weighted average per final_state and gamma_bth
         theta_rd_c = np.zeros(self.env.no_offers) # self.a - sum of rewards per action_n
-        theta_at_c = np.zeros(self.env.no_offers) # self-b - no. times action_n was selected
+        theta_at_c = np.zeros(self.env.no_offers) # self.b - no. times action_n was selected
+        thom_var_mu = np.zeros(self.env.no_offers)  # self.thom_var - Variance of the Beta distribution (Thompson-Sampler policy)
         total_state = 0
         # For-loop to calculate var_theta per episode i in mini_batch
-        for theta_rd_i, theta_at_i, total_rd_i, final_step_i, final_state_i in mini_batch: # Get elements per deque (episode i)
+        for theta_rd_i, theta_at_i, thom_var_i, total_rd_i, final_step_i, final_state_i in mini_batch: # Get elements per deque (episode i)
             gamma_i = total_rd_i / final_step_i # gamma per episode i
             # Weighted sum
             theta_rd_c += theta_rd_i if greedy else final_state_i * gamma_i * theta_rd_i
             theta_at_c += theta_at_i if greedy else final_state_i * gamma_i * theta_at_i
+            thom_var_mu += thom_var_i if greedy else final_state_i * gamma_i * thom_var_i
             total_state += 1 if greedy else final_state_i
         # Get the average result by dividing for total_state
-        theta_rd_c = theta_rd_c / total_state  # avg_sum_reward per action_n - avg_a
-        theta_at_c = theta_at_c / total_state  # avg_no.times per action_n - avg_b
-        # var_theta_avg = avg_a / avg_b
-        theta_c = theta_rd_c / theta_at_c if not self.policy_opt == 'Thompson_Sampler_policy' else theta_rd_c / (theta_rd_c + theta_at_c)
+        #theta_rd_c = theta_rd_c / total_state  # avg_sum_reward per action_n - avg_a
+        theta_c = theta_rd_c / total_state  # avg_sum_reward per partner j - avg_var_theta
+        theta_at_c = theta_at_c / total_state  # avg_no.times per partner j - avg_b
+        thom_var_mu = thom_var_mu / total_state # avg variance per partner j - avg_thom_var
         theta_c = np.nan_to_num(theta_c, nan=0)
+
         # Return the final var_theta_avg
-        self.a = theta_rd_c.round(1)
-        self.b = theta_at_c.round(1)
-        self.var_theta = theta_c.round(1)
-        # if self.policy_opt == 'Thompson_Sampler_policy':
-        #     self.a += 1
-        #     self.b += 1
-        #     self.var_theta = self.a / self.b
-        #     self.var_theta = self.var_theta.round(1)
+        self.b = theta_at_c #.round(1)
+        self.var_theta = theta_c #.round(1)
+        self.thom_var = thom_var_mu.round(0)
         if self.policy_opt == 'e-greedy_policy':
             self.time_learning = 0
             self.e_greedy = 0.05
@@ -284,12 +282,14 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
 
     def tpSampler_policy(self, mask):
         # Thompson Sampler policy
+        mu = self.b * self.var_theta # mu = \sum(Reward[n] for all j)
+        var = self.thom_var # var = \sum(1 - Reward[n] for all j)
         # Sampling a probability based on distribution (We assumed Beta Bernoulli) based on cumulative reward (self.a) and no. selected-times (self.b) per var_n
         # The Beta-dist captures the uncertainty per var_n that is changing over time_t...
         # Per time_t indicates the probablity of getting reward per var_n, it is dynamic over trials until the Beta-dist goes towards the var_n with highest reward
         # Rule of thumb - largest mean and smallest std.dev results in greater prob of being selected...
         # ...var_n with low revenue is expected a wider distribution with small mean and large std.dev resulting in high uncertainty for future action choice
-        sample_theta = np.random.beta(self.a, self.b)
+        sample_theta = np.random.beta(mu, var)
         mask_theta = np.ma.array(sample_theta, mask= mask)
         # Select the var_n (machine) with highest expected revenue (based on cumulative probability over time_t)
         return int(np.argmax(mask_theta))
