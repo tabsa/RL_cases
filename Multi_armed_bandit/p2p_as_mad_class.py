@@ -70,7 +70,7 @@ class trading_env:
             state_n_1 = trading_agent.state_n[n - 1] if n > 0 else 0 # state_n-1
             trading_agent.action_n[:, n], trading_agent.state_n[n] = self.update_state_reward(action_n, state_n_1, trading_agent.reward_n[n], target_T)
             trading_agent.total_reward += trading_agent.reward_n[n] # Total reward over n steps
-            trading_agent.update_regret_prob()  # Update of regret probability
+            trading_agent.update_value_fun()  # Update of regret probability
             # Termination condition
             if target_T == trading_agent.state_n[n] or n == self.no_trials-1: # E_target is reached OR final step_n is reached
                 self.env_simulation = 1
@@ -189,27 +189,30 @@ class trading_agent: # Class of RL_agent to represent the prosumer i
         ## Run a Uniform sampling - Single value but it can be a time-series
         return np.random.uniform(low=self.energy_target_bounds[0], high=self.energy_target_bounds[1])
 
-    def update_regret_prob(self): # Function to update the arrays over time_t and var_n
-        # Update the Cumulative probability for the var_n. It is updated everytime var_n is selected by action_t
-        self.a[self.action_choice] += self.reward_n[self.id_n]
+    def update_value_fun(self): # Function to update the Q_fun and regret arrays over step_n and partner j
+        n = self.id_n # step n
+        j_arm = self.action_choice # action n
+        # Update the Value function for each partner j. It is updated everytime partner j is selected by action_n
+        self.a[j_arm] += self.reward_n[n]
         # self.b counts the no of times var_n was selected for self.policy_opt --> 'Random' and 'e-Greedy'
         # When self.policy_opt --> 'Thompson-Sampler', self.b increments 1 when var_n has reward = 0 (we miss). This way the cumulative_reward (self.a) is spreaded on the Beta Bernoulli distribution
         # It is like the ratio of self.a/self.b drops everytime we miss revenue with var_n (machine). Increase the change of another var_n being selected later on
-        self.b[self.action_choice] += 1 - self.reward_n[self.id_n] if self.policy_opt == 'Thompson_Sampler_policy' else 1
-        # Update the Prob of all variants_n (slot machines) of the action space [1,...,self.env.action_size]
+        self.b[j_arm] += 1 - self.reward_n[n] if self.policy_opt == 'Thompson_Sampler_policy' else 1
+        # Update the Q-Value for the selected partner j (Estimated mean prob mu_j^n)
         if not self.policy_opt == 'Thompson_Sampler_policy':
-            self.var_theta[self.action_choice] = self.a[self.action_choice] / self.b[self.action_choice]
+            self.var_theta[j_arm] += (1/self.b[j_arm]) * (self.reward_n[n] - self.var_theta[j_arm])
         else:
-            self.var_theta[self.action_choice] = self.a[self.action_choice] / (self.a[self.action_choice] + self.b[self.action_choice])
+            self.var_theta[j_arm] = self.a[j_arm] / (self.a[j_arm] + self.b[j_arm])
 
         #self.var_theta = np.nan_to_num(self.a / self.b, nan=0)
-        self.multi_play_k[self.action_choice] += 1 if self.reward_n[self.id_n] == 1 else 0 # Increments 1 everytime Rd_n(j) is 1 (success offer j)
+        self.multi_play_k[self.action_choice] += 1 if self.reward_n[n] == 1 else 0 # Increments 1 everytime Rd_n(j) is 1 (success offer j)
 
-        # Calculate for step_n the Cumulative probability of regret (opportunity cost)
-        self.theta_n[self.id_n] = self.var_theta[self.action_choice]
+        # Calculate for step_n the Q-value function (that quantifies the expected return):
+        Qval_n_1 = self.theta_n[n-1] if n>0 else 0 # n==0 we have 0
+        self.theta_n[n] = Qval_n_1 + 1/(n+1) * (self.reward_n[n] - Qval_n_1)
         # The opportunity cost (regret) depends on NOT exploiting others 'non-seen' (less prob) var_n then var_n[self.action_choice]
         # (1-e-greedy) of time_t the Agent will select the var_n with the highest self.var_theta, the regret comes on NOT exploring other action_options
-        self.theta_regret_n[self.id_n] = np.max(self.theta_n) - self.var_theta[self.action_choice]
+        self.theta_regret_n[n] = np.max(self.theta_n) - self.var_theta[self.action_choice] # SEE THIS FORMULA (WE MAY GET NEGATIVE RESULTS)
 
     def action(self):  # Function to make the action of the agent over step_n
         multi_play = self.multi_play_k >= 3

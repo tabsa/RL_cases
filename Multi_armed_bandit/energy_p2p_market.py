@@ -43,8 +43,8 @@ out_filename = os.path.join(wk_dir, out_filename)
 env = trading_env(no_agents, no_trials, 'offers_input.csv', 'External_sample', target_sample)
 # Assign RL agents in the agent_list, each RL agent has a different policy strategy
 agent_policy = ['Random_policy', 'e-greedy_policy', 'Thompson_Sampler_policy']
-agent_list.append(trading_agent(env, target_bounds, agent_policy[2])) # Agent using the Thompson-Sampler policy
 agent_list.append(trading_agent(env, target_bounds, agent_policy[1], time_learning=10, e_greedy=0.25)) # Agent using the e-Greedy policy
+agent_list.append(trading_agent(env, target_bounds, agent_policy[2])) # Agent using the Thompson-Sampler policy
 agent_list.append(trading_agent(env, target_bounds, agent_policy[0])) # Agent using the Random policy
 
 #%% Simulation phase
@@ -59,8 +59,9 @@ for agent in agent_list: # For-loop per RL agent
             env.run(agent, e) # Run environment, inputs we have RL_agent and episode id
             # Store info in the memory
             agent.memory.append((agent.a, agent.b, agent.total_reward, agent.id_n, agent.state_n[agent.id_n]))
-            if len(agent.memory) > batch_size: # and len(agent.memory) <= 50:
+            if len(agent.memory) >= batch_size: # and len(agent.memory) <= 50:
                 agent.exp_replay(batch_size, greedy=True)
+                batch_size += 1 # Increase the batch size of previous episodes, to propagate the long-term memory
             # Store final results in np.arrays
             policy_sol_epi[:, :, e] = agent.policy_sol
         # Reset of both agent and environment
